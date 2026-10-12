@@ -1,0 +1,382 @@
+# ChildEvidence seed papers and theory anchors.
+# title/year/author hints drive API resolution; DOIs listed here are
+# CANDIDATES ONLY - every resolved DOI is verified against OpenAlex by title
+# similarity before ingestion. Metadata truth lives in the API responses.
+# manual_entry: true  -> institutional documents ingested directly from these
+#                        fields; landing pages verified against official sites.
+
+seeds:
+  # ---- task-required seeds -------------------------------------------------
+  - id: diamond_2013_executive_functions
+    title: Executive Functions
+    year: 2013
+    author_surname: Diamond
+    doi: 10.1146/annurev-psych-113011-143750
+    document_type: review_article
+    domains: [child_development, learning_sciences]
+    tags: [executive_function, cognitive_control]
+    evidence_category: narrative_review
+    peer_review_status: peer_reviewed_journal_source
+    anchor: true
+
+  - id: deci_ryan_2000_sdt
+    title: The "What" and "Why" of Goal Pursuits - Human Needs and the Self-Determination of Behavior
+    year: 2000
+    author_surname: Deci
+    doi: 10.1207/S15327965PLI1104_01
+    document_type: journal_article
+    domains: [learning_sciences, behavior_support]
+    tags: [motivation, self_determination]
+    frameworks: [self_determination_theory]
+    evidence_category: theoretical_conceptual
+    peer_review_status: peer_reviewed_journal_source
+    anchor: true
+
+  - id: zimmerman_2002_srl
+    title: Becoming a Self-Regulated Learner - An Overview
+    year: 2002
+    author_surname: Zimmerman
+    doi: 10.1080/00405840209565190
+    document_type: journal_article
+    domains: [learning_sciences]
+    tags: [self_regulated_learning]
+    evidence_category: theoretical_conceptual
+    peer_review_status: peer_reviewed_journal_source
+    anchor: true
+
+  - id: dunlosky_2013_learning_techniques
+    title: Improving Students' Learning With Effective Learning Techniques
+    year: 2013
+    author_surname: Dunlosky
+    doi: 10.1177/1529100612453266
+    document_type: journal_article
+    domains: [learning_sciences]
+    tags: [retrieval_practice, spaced_practice, learning_techniques]
+    evidence_category: systematic_review
+    peer_review_status: peer_reviewed_journal_source
+    anchor: true
+
+  - id: nap_2018_how_people_learn_ii
+    title: How People Learn II - Learners, Contexts, and Cultures
+    year: 2018
+    publisher: National Academies Press
+    document_type: report
+    manual_entry: true
+    domains: [learning_sciences, child_development, cross_domain]
+    tags: [learning_sciences, consensus_report]
+    evidence_category: policy_report
+    landing_page: https://nap.nationalacademies.org/catalog/24783/how-people-learn-ii-learners-contexts-and-cultures
+
+  - id: eef_2025_metacognition_srl
+    title: Metacognition and Self-Regulated Learning - Guidance Report (Second Edition, v2.4.0)
+    year: 2025
+    publisher: Education Endowment Foundation
+    document_type: practice_guide
+    manual_entry: true
+    domains: [learning_sciences]
+    tags: [metacognition, self_regulated_learning, evidence_guidance]
+    evidence_category: practice_guideline
+    landing_page: https://educationendowmentfoundation.org.uk/education-evidence/guidance-reports/metacognition
+    direct_pdf: https://d2tic4wvo1iusb.cloudfront.net/production/eef-guidance-reports/metacognition/metacognition-and-self-regulated-learning_guidance-report.v.2.4.0.pdf
+
+  - id: wwc_2025_behavioral_interventions_k5
+    title: Teacher-Delivered Behavioral Interventions in Grades K-5 - Practice Guide (WWC 2025001)
+    year: 2025
+    publisher: What Works Clearinghouse (Institute of Education Sciences)
+    document_type: practice_guide
+    manual_entry: true
+    domains: [behavior_support, learning_sciences]
+    tags: [behavior_intervention, evidence_guidance]
+    evidence_category: practice_guideline
+    landing_page: https://ies.ed.gov/ncee/wwc/PracticeGuide
+    direct_pdf: https://ies.ed.gov/ncee/WWC/Docs/PracticeGuide/behavioral-interventions-practice-guide_v3a_508a.pdf
+
+  - id: oecd_2025_sses_technical_report
+    title: OECD Survey on Social and Emotional Skills 2023 Technical Report
+    year: 2025
+    publisher: OECD
+    document_type: report
+    manual_entry: true
+    domains: [child_development, cross_domain]
+    tags: [social_emotional_skills, assessment]
+    evidence_category: policy_report
+    landing_page: https://www.oecd-ilibrary.org/en/publications/2025/05/oecd-survey-on-social-and-emotional-skills-2023-technical-report_06401f20.html
+
+  - id: unicef_2025_ai_children
+    title: Guidance on AI and Children (Version 3.0)
+    year: 2025
+    publisher: UNICEF Innocenti - Global Office of Research and Foresight
+    document_type: report
+    manual_entry: true
+    domains: [ai_children, cross_domain]
+    tags: [child_ai_safety, ai_ethics, child_rights]
+    evidence_category: policy_report
+    landing_page: https://www.unicef.org/innocenti/media/11991/file/UNICEF-Innocenti-Guidance-on-AI-and-Children-3-2025.pdf
+    direct_pdf: https://www.unicef.org/innocenti/media/11991/file/UNICEF-Innocenti-Guidance-on-AI-and-Children-3-2025.pdf
+
+  # ---- theory anchors -------------------------------------------------------
+  - id: bandura_1977_self_efficacy
+    title: Self-efficacy - Toward a Unifying Theory of Behavioral Change
+    year: 1977
+    author_surname: Bandura
+    doi: 10.1037/0033-295X.84.2.191
+    document_type: journal_article
+    domains: [child_development, learning_sciences]
+    tags: [self_efficacy, social_learning]
+    frameworks: [bandura_social_learning_self_efficacy]
+    evidence_category: theoretical_conceptual
+    peer_review_status: peer_reviewed_journal_source
+    anchor: true
+
+  - id: bandura_2001_agentic
+    title: Social Cognitive Theory - An Agentic Perspective
+    year: 2001
+    author_surname: Bandura
+    doi: 10.1146/annurev.psych.52.1.1
+    document_type: review_article
+    domains: [child_development]
+    tags: [social_learning, agency]
+    frameworks: [bandura_social_learning_self_efficacy]
+    evidence_category: narrative_review
+    peer_review_status: peer_reviewed_journal_source
+
+  - id: dweck_leggett_1988
+    title: A social-cognitive approach to motivation and personality
+    year: 1988
+    author_surname: Dweck
+    doi: 10.1037/0033-295X.95.2.256
+    document_type: journal_article
+    domains: [learning_sciences, child_development]
+    tags: [growth_mindset, motivation]
+    evidence_category: theoretical_conceptual
+    peer_review_status: peer_reviewed_journal_source
+
+  - id: blackwell_2007_implicit_theories
+    title: Implicit theories of intelligence predict achievement across an adolescent transition
+    year: 2007
+    author_surname: Blackwell
+    doi: 10.1111/j.1467-9280.2007.01901.x
+    document_type: journal_article
+    domains: [learning_sciences]
+    tags: [growth_mindset, achievement]
+    evidence_category: longitudinal
+    peer_review_status: peer_reviewed_journal_source
+
+  - id: sisk_2018_mindset_meta
+    title: To What Extent and Under Which Circumstances Are Growth Mind-Sets Important to Academic Achievement - Two Meta-Analyses
+    year: 2018
+    author_surname: Sisk
+    doi: 10.1177/0956797617739704
+    document_type: journal_article
+    domains: [learning_sciences]
+    tags: [growth_mindset, meta_analysis]
+    evidence_category: meta_analysis
+    peer_review_status: peer_reviewed_journal_source
+
+  - id: macnamara_2023_mindset_meta
+    title: Do Growth Mindset Interventions Impact Students' Academic Achievement - A Systematic Review and Meta-Analysis with Recommendations for Best Practices
+    year: 2023
+    author_surname: Macnamara
+    document_type: journal_article
+    domains: [learning_sciences]
+    tags: [growth_mindset, meta_analysis, contested_evidence]
+    evidence_category: meta_analysis
+    peer_review_status: peer_reviewed_journal_source
+
+  - id: sweller_1988_cognitive_load
+    title: Cognitive Load During Problem Solving - Effects on Learning
+    year: 1988
+    author_surname: Sweller
+    doi: 10.1207/s15516709cog1202_4
+    document_type: journal_article
+    domains: [learning_sciences]
+    tags: [cognitive_load, problem_solving]
+    frameworks: [cognitive_load_theory]
+    evidence_category: theoretical_conceptual
+    peer_review_status: peer_reviewed_journal_source
+    anchor: true
+
+  - id: sweller_2019_cld_20y
+    title: Cognitive Architecture and Instructional Design - 20 Years Later
+    year: 2019
+    author_surname: Sweller
+    doi: 10.1007/s10648-019-09465-5
+    document_type: review_article
+    domains: [learning_sciences]
+    tags: [cognitive_load, instructional_design]
+    frameworks: [cognitive_load_theory]
+    evidence_category: narrative_review
+    peer_review_status: peer_reviewed_journal_source
+
+  - id: baddeley_2012_working_memory
+    title: Working Memory - Theories, Models, and Controversies
+    year: 2012
+    author_surname: Baddeley
+    doi: 10.1146/annurev-psych-120710-100422
+    document_type: review_article
+    domains: [child_development, learning_sciences]
+    tags: [working_memory]
+    frameworks: [baddeley_working_memory]
+    evidence_category: narrative_review
+    peer_review_status: peer_reviewed_journal_source
+    anchor: true
+
+  - id: gross_1998_emotion_regulation
+    title: The emerging field of emotion regulation - An integrative review
+    year: 1998
+    author_surname: Gross
+    doi: 10.1037/1089-2680.2.3.271
+    document_type: journal_article
+    domains: [child_development, behavior_support]
+    tags: [emotion_regulation]
+    frameworks: [gross_emotion_regulation]
+    evidence_category: theoretical_conceptual
+    peer_review_status: peer_reviewed_journal_source
+    anchor: true
+
+  - id: gross_john_2003_individual_differences
+    title: Individual differences in two emotion regulation processes - Implications for affect, relationships, and well-being
+    year: 2003
+    author_surname: Gross
+    doi: 10.1037/0022-3514.85.2.348
+    document_type: journal_article
+    domains: [child_development, behavior_support]
+    tags: [emotion_regulation, reappraisal, suppression]
+    frameworks: [gross_emotion_regulation]
+    evidence_category: other_empirical
+    peer_review_status: peer_reviewed_journal_source
+
+  - id: miyake_2000_unity_diversity
+    title: The unity and diversity of executive functions and their contributions to complex frontal lobe tasks - a latent variable analysis
+    year: 2000
+    author_surname: Miyake
+    doi: 10.1006/cogp.1999.0734
+    document_type: journal_article
+    domains: [child_development]
+    tags: [executive_function, individual_differences]
+    evidence_category: other_empirical
+    peer_review_status: peer_reviewed_journal_source
+
+  - id: best_miller_2010_ef_development
+    title: A Developmental Perspective on Executive Function
+    year: 2010
+    author_surname: Best
+    doi: 10.1111/j.1467-8624.2010.01499.x
+    document_type: review_article
+    domains: [child_development]
+    tags: [executive_function, development]
+    evidence_category: narrative_review
+    peer_review_status: peer_reviewed_journal_source
+
+  - id: bronfenbrenner_1979_ecology
+    title: The Ecology of Human Development - Experiments by Nature and Design
+    year: 1979
+    author_surname: Bronfenbrenner
+    publisher: Harvard University Press
+    document_type: book
+    domains: [child_development]
+    tags: [ecological_systems, development]
+    frameworks: [bronfenbrenner_bioecological]
+    evidence_category: theoretical_conceptual
+    peer_review_status: peer_reviewed_book
+
+  - id: vygotsky_1978_mind_in_society
+    title: Mind in Society - The Development of Higher Psychological Processes
+    year: 1978
+    author_surname: Vygotsky
+    publisher: Harvard University Press
+    document_type: book
+    domains: [child_development]
+    tags: [vygotsky, zpd, sociocultural]
+    frameworks: [vygotsky_sociocultural_zpd]
+    evidence_category: theoretical_conceptual
+    peer_review_status: peer_reviewed_book
+
+  - id: groh_2014_attachment_peers
+    title: The significance of attachment security for children's social competence with peers - A meta-analytic study
+    year: 2014
+    author_surname: Groh
+    doi: 10.1080/14616734.2014.883636
+    document_type: journal_article
+    domains: [child_development, behavior_support]
+    tags: [attachment, peer_relations, meta_analysis]
+    evidence_category: meta_analysis
+    peer_review_status: peer_reviewed_journal_source
+
+  - id: fearon_2010_attachment_externalizing
+    title: The Significance of Insecure Attachment and Disorganization in the Development of Children's Externalizing Behavior - A Meta-Analytic Study
+    year: 2010
+    author_surname: Fearon
+    doi: 10.1111/j.1467-8624.2009.01405.x
+    document_type: journal_article
+    domains: [child_development, behavior_support]
+    tags: [attachment, externalizing, meta_analysis]
+    evidence_category: meta_analysis
+    peer_review_status: peer_reviewed_journal_source
+
+  - id: van_de_pol_2010_scaffolding
+    title: Scaffolding in teacher-student interaction - A decade of research
+    year: 2010
+    author_surname: van de Pol
+    doi: 10.1007/s10648-010-9127-6
+    document_type: review_article
+    domains: [learning_sciences]
+    tags: [scaffolding, instruction]
+    frameworks: [vygotsky_sociocultural_zpd]
+    evidence_category: narrative_review
+    peer_review_status: peer_reviewed_journal_source
+
+  - id: roediger_karpicke_2006_testing
+    title: Test-Enhanced Learning - Taking Memory Tests Improves Long-Term Retention
+    year: 2006
+    author_surname: Roediger
+    doi: 10.1111/j.1467-9280.2006.01693.x
+    document_type: journal_article
+    domains: [learning_sciences]
+    tags: [retrieval_practice, memory]
+    evidence_category: rct
+    peer_review_status: peer_reviewed_journal_source
+
+  - id: cepeda_2006_distributed_practice
+    title: Distributed practice in verbal recall tasks - A review and quantitative synthesis
+    year: 2006
+    author_surname: Cepeda
+    doi: 10.1037/0033-2909.132.3.354
+    document_type: journal_article
+    domains: [learning_sciences]
+    tags: [spaced_practice, meta_analysis]
+    evidence_category: meta_analysis
+    peer_review_status: peer_reviewed_journal_source
+
+  - id: ryan_deci_2020_sdt_education
+    title: Intrinsic and extrinsic motivation from a self-determination theory perspective - Definitions, theory, practices, and future directions
+    year: 2020
+    author_surname: Ryan
+    doi: 10.1016/j.cedpsych.2020.101860
+    document_type: journal_article
+    domains: [learning_sciences]
+    tags: [motivation, self_determination]
+    frameworks: [self_determination_theory]
+    evidence_category: narrative_review
+    peer_review_status: peer_reviewed_journal_source
+
+  - id: hattie_timperley_2007_feedback
+    title: The Power of Feedback
+    year: 2007
+    author_surname: Hattie
+    document_type: journal_article
+    domains: [learning_sciences]
+    tags: [feedback]
+    evidence_category: narrative_review
+    peer_review_status: peer_reviewed_journal_source
+
+  - id: blair_raver_2015_self_regulation
+    title: School Readiness and Self-Regulation - A Developmental Psychobiological Approach
+    year: 2015
+    author_surname: Blair
+    doi: 10.1146/annurev-psych-010814-015221
+    document_type: review_article
+    domains: [child_development, behavior_support]
+    tags: [self_regulation, school_readiness]
+    evidence_category: narrative_review
+    peer_review_status: peer_reviewed_journal_source

@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "childevidence"
+version = "0.1.0"
+description = "ChildEvidence - children's development & education research evidence library (acquisition, evidence management, knowledge engineering infrastructure)"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [{ name = "LumiThink / ChildEvidence maintainers" }]
+dependencies = []  # standard library only by design
+
+[project.scripts]
+research = "research_library.cli:main"
+
+[tool.setuptools]
+package-dir = { "" = "src" }
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+research_library = ["py.typed"]

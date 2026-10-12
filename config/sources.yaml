@@ -1,0 +1,42 @@
+# ChildEvidence Research Library - data sources configuration.
+# Only official public APIs. Credentials/identifiers come from environment
+# variables, never from this file:
+#   OPENALEX_API_KEY    (optional, OpenAlex premium)
+#   CROSSREF_MAILTO     (polite pool contact)
+#   UNPAYWALL_EMAIL     (required by Unpaywall)
+#   CHILDEVIDENCE_CONTACT_EMAIL (fallback contact for all sources;
+#     LUMITHINK_CONTACT_EMAIL kept as a legacy alias)
+user_agent: ChildEvidence-ResearchLibrary/0.1 (mailto:childevidence-research@users.noreply.github.com)
+contact_email_fallback: childevidence-research@users.noreply.github.com
+default_cache_ttl_days: 7
+
+# Per-host minimum interval in seconds (politeness / rate limits).
+rate_limits:
+  api.openalex.org: 0.2
+  api.crossref.org: 1.0
+  api.ies.ed.gov: 0.5
+  www.ebi.ac.uk: 0.4
+  api.semanticscholar.org: 1.2
+  api.unpaywall.org: 0.5
+  files.eric.ed.gov: 1.0
+  europepmc.org: 0.5
+
+endpoints:
+  openalex: https://api.openalex.org
+  crossref: https://api.crossref.org
+  eric: https://api.ies.ed.gov/eric/
+  europepmc: https://www.ebi.ac.uk/europepmc/webservices/rest
+  unpaywall: https://api.unpaywall.org/v2
+  semanticscholar: https://api.semanticscholar.org/graph/v1
+
+# PDF download candidate priority (1 = highest); documented in methodology.md.
+pdf_source_policy:
+  allowed_origins:
+    - europepmc
+    - openalex
+    - unpaywall
+    - crossref
+    - eric
+    - semanticscholar
+    - seed_direct
+  forbidden: scihub, libgen, paywall bypass, captcha bypass, any protected content

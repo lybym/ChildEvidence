@@ -1,0 +1,540 @@
+# ChildEvidence research topics and discovery queries.
+# Every query runs against official public APIs only.
+# Filters follow OpenAlex filter syntax (title.search / from_publication_date / type).
+# quota = per-domain promotion target for topic candidates (seeds are extra).
+
+domains:
+  child_development:
+    quota: 26
+    queries:
+      - id: dev_ef_recent
+        tags: [executive_function, cognitive_control]
+        openalex:
+          filter:
+            title.search: executive function
+            from_publication_date: "2018-01-01"
+            type: article|review
+          sort: cited_by_count:desc
+        limit: 6
+      - id: dev_ef_reviews
+        tags: [executive_function]
+        openalex:
+          filter:
+            title.search: executive function
+            from_publication_date: "2015-01-01"
+            type: review
+        limit: 4
+      - id: dev_ef_training
+        tags: [executive_function, intervention]
+        openalex:
+          filter:
+            title.search: executive function training
+            from_publication_date: "2014-01-01"
+        limit: 4
+      - id: dev_zpd
+        tags: [vygotsky, scaffolding]
+        frameworks: [vygotsky_sociocultural_zpd]
+        openalex:
+          filter:
+            title.search: zone of proximal development
+          sort: cited_by_count:desc
+        limit: 4
+      - id: dev_scaffolding
+        tags: [scaffolding, instruction]
+        openalex:
+          filter:
+            title.search: scaffolding
+            from_publication_date: "2016-01-01"
+            type: article|review
+        limit: 4
+      - id: dev_attachment
+        tags: [attachment]
+        frameworks: [bowlby_attachment]
+        openalex:
+          filter:
+            title.search: attachment security
+            from_publication_date: "2015-01-01"
+          sort: cited_by_count:desc
+        limit: 4
+      - id: dev_emotion_regulation
+        tags: [emotion_regulation]
+        frameworks: [gross_emotion_regulation]
+        openalex:
+          filter:
+            title.search: emotion regulation
+            from_publication_date: "2020-01-01"
+            type: article|review
+        limit: 5
+      - id: dev_peer_empathy
+        tags: [empathy, peer_relations]
+        openalex:
+          filter:
+            title.search: empathy children
+        limit: 4
+      - id: dev_self_efficacy
+        tags: [self_efficacy]
+        frameworks: [bandura_social_learning_self_efficacy]
+        openalex:
+          filter:
+            title.search: self-efficacy
+            from_publication_date: "2019-01-01"
+            type: article|review
+          sort: cited_by_count:desc
+        limit: 4
+      - id: dev_ecological
+        tags: [ecological_systems]
+        frameworks: [bronfenbrenner_bioecological]
+        openalex:
+          filter:
+            title.search: ecological systems
+        limit: 3
+      - id: dev_neurodiversity
+        tags: [neurodiversity, individual_differences]
+        openalex:
+          filter:
+            title.search: neurodiversity
+            from_publication_date: "2020-01-01"
+        limit: 4
+      - id: dev_piaget
+        tags: [piaget, cognitive_development]
+        frameworks: [piaget_cognitive_development]
+        openalex:
+          filter:
+            title.search: Piaget
+          sort: cited_by_count:desc
+        limit: 3
+      - id: dev_erikson
+        tags: [erikson, psychosocial]
+        frameworks: [erikson_psychosocial]
+        openalex:
+          filter:
+            title.search: psychosocial development
+        limit: 3
+      - id: dev_social_competence
+        tags: [social_development]
+        openalex:
+          filter:
+            title.search: social competence
+            from_publication_date: "2018-01-01"
+            type: article|review
+        limit: 3
+      - id: dev_epmc_ef_training
+        tags: [executive_function, intervention]
+        europepmc:
+          query: "executive function training AND children"
+        limit: 3
+
+  learning_sciences:
+    quota: 30
+    queries:
+      - id: ls_srl
+        tags: [self_regulated_learning]
+        openalex:
+          filter:
+            title.search: self-regulated learning
+            from_publication_date: "2017-01-01"
+            type: article|review
+          sort: cited_by_count:desc
+        limit: 6
+      - id: ls_srl_elementary
+        tags: [self_regulated_learning, primary_school]
+        openalex:
+          filter:
+            title.search: self-regulated learning elementary
+        limit: 3
+      - id: ls_metacognition
+        tags: [metacognition]
+        openalex:
+          filter:
+            title.search: metacognition
+            from_publication_date: "2019-01-01"
+            type: article|review
+          sort: cited_by_count:desc
+        limit: 5
+      - id: ls_metacognition_children
+        tags: [metacognition, children]
+        openalex:
+          filter:
+            title.search: metacognition children
+        limit: 3
+      - id: ls_retrieval_practice
+        tags: [retrieval_practice]
+        openalex:
+          filter:
+            title.search: retrieval practice
+            from_publication_date: "2015-01-01"
+        limit: 5
+      - id: ls_spaced
+        tags: [spaced_practice]
+        openalex:
+          filter:
+            title.search: spaced practice
+        limit: 3
+      - id: ls_interleaving
+        tags: [interleaving]
+        openalex:
+          filter:
+            title.search: interleaving
+        limit: 3
+      - id: ls_cognitive_load
+        tags: [cognitive_load]
+        frameworks: [cognitive_load_theory]
+        openalex:
+          filter:
+            title.search: cognitive load
+            from_publication_date: "2018-01-01"
+            type: article|review
+        limit: 5
+      - id: ls_working_memory
+        tags: [working_memory]
+        openalex:
+          filter:
+            title.search: working memory academic
+        limit: 3
+      - id: ls_growth_mindset
+        tags: [growth_mindset]
+        openalex:
+          filter:
+            title.search: growth mindset
+            from_publication_date: "2018-01-01"
+        limit: 5
+      - id: ls_sdt_motivation
+        tags: [motivation]
+        frameworks: [self_determination_theory]
+        openalex:
+          filter:
+            title.search: self-determination theory
+            from_publication_date: "2018-01-01"
+        limit: 4
+      - id: ls_formative_assessment
+        tags: [formative_assessment, feedback]
+        openalex:
+          filter:
+            title.search: formative assessment
+            from_publication_date: "2017-01-01"
+        limit: 4
+      - id: ls_math_difficulties
+        tags: [math_difficulties]
+        openalex:
+          filter:
+            title.search: mathematical learning difficulties
+        limit: 3
+      - id: ls_number_sense
+        tags: [mathematics, primary_school]
+        openalex:
+          filter:
+            title.search: number sense
+            from_publication_date: "2016-01-01"
+        limit: 3
+      - id: ls_reading
+        tags: [reading]
+        openalex:
+          filter:
+            title.search: reading comprehension
+            from_publication_date: "2019-01-01"
+            type: article|review
+        limit: 4
+      - id: ls_test_anxiety
+        tags: [test_anxiety]
+        openalex:
+          filter:
+            title.search: test anxiety
+            from_publication_date: "2016-01-01"
+        limit: 3
+      - id: ls_procrastination
+        tags: [procrastination]
+        openalex:
+          filter:
+            title.search: academic procrastination
+        limit: 3
+      - id: ls_eric_metacog
+        tags: [metacognition, primary_school]
+        eric:
+          query: metacognition AND elementary AND peerreviewed:T
+        limit: 3
+      - id: ls_eric_math_rct
+        tags: [mathematics, intervention]
+        eric:
+          query: mathematics intervention AND randomized AND elementary AND peerreviewed:T
+        limit: 3
+
+  behavior_support:
+    quota: 24
+    queries:
+      - id: bs_co_regulation
+        tags: [co_regulation]
+        openalex:
+          filter:
+            title.search: co-regulation
+        limit: 4
+      - id: bs_self_regulation
+        tags: [self_regulation]
+        openalex:
+          filter:
+            title.search: self-regulation
+            from_publication_date: "2019-01-01"
+            type: article|review
+          sort: cited_by_count:desc
+        limit: 4
+      - id: bs_pbs
+        tags: [positive_behavior_support]
+        openalex:
+          filter:
+            title.search: positive behavior support
+        limit: 3
+      - id: bs_homework_parent
+        tags: [homework, parent_involvement]
+        openalex:
+          filter:
+            title.search: parental involvement homework
+        limit: 4
+      - id: bs_emotion_coaching
+        tags: [emotion_coaching]
+        openalex:
+          filter:
+            title.search: emotion coaching
+        limit: 3
+      - id: bs_school_anxiety
+        tags: [anxiety, school]
+        openalex:
+          filter:
+            title.search: school anxiety
+            from_publication_date: "2017-01-01"
+        limit: 3
+      - id: bs_delay_gratification
+        tags: [self_control, frustration_tolerance]
+        openalex:
+          filter:
+            title.search: delay of gratification
+          sort: cited_by_count:desc
+        limit: 3
+      - id: bs_sleep
+        tags: [sleep, behavior]
+        openalex:
+          filter:
+            title.search: sleep problems children
+        limit: 3
+      - id: bs_sel
+        tags: [sel]
+        openalex:
+          filter:
+            title.search: social-emotional learning
+            from_publication_date: "2016-01-01"
+        limit: 5
+      - id: bs_sel_eric
+        tags: [sel, primary_school]
+        eric:
+          query: social emotional learning AND elementary AND peerreviewed:T
+        limit: 3
+      - id: bs_parent_conflict
+        tags: [family_communication]
+        openalex:
+          filter:
+            title.search: parent-child conflict
+        limit: 3
+      - id: bs_school_mental_health
+        tags: [referral, school_mental_health]
+        openalex:
+          filter:
+            title.search: school mental health services
+            from_publication_date: "2016-01-01"
+        limit: 3
+      - id: bs_epmc_stress
+        tags: [academic_stress]
+        europepmc:
+          query: "academic stress AND children AND randomized"
+        limit: 3
+
+  ai_children:
+    quota: 18
+    queries:
+      - id: ai_conversational_agents
+        tags: [conversational_ai]
+        openalex:
+          filter:
+            title.search: conversational agents children
+            from_publication_date: "2021-01-01"
+        limit: 5
+      - id: ai_voice_assistants
+        tags: [voice_assistants]
+        openalex:
+          filter:
+            title.search: voice assistants children
+            from_publication_date: "2020-01-01"
+        limit: 4
+      - id: ai_trust
+        tags: [trust_calibration]
+        openalex:
+          filter:
+            title.search: trust in AI
+            from_publication_date: "2022-01-01"
+        limit: 4
+      - id: ai_companion
+        tags: [ai_companionship]
+        openalex:
+          filter:
+            title.search: AI companion
+            from_publication_date: "2023-01-01"
+        limit: 3
+      - id: ai_chatbot_learning
+        tags: [educational_chatbots]
+        openalex:
+          filter:
+            title.search: chatbot learning
+            from_publication_date: "2021-01-01"
+        limit: 4
+      - id: ai_generative_education
+        tags: [generative_ai]
+        openalex:
+          filter:
+            title.search: generative AI
+            from_publication_date: "2023-01-01"
+            type: article|review
+        limit: 5
+      - id: ai_llm_tutoring
+        tags: [llm_tutoring]
+        openalex:
+          filter:
+            title.search: language model tutoring
+            from_publication_date: "2023-01-01"
+        limit: 3
+      - id: ai_child_robot
+        tags: [child_robot_interaction]
+        openalex:
+          filter:
+            title.search: child-robot interaction
+            from_publication_date: "2019-01-01"
+        limit: 3
+      - id: ai_privacy
+        tags: [child_ai_privacy]
+        openalex:
+          filter:
+            title.search: children data privacy
+            from_publication_date: "2021-01-01"
+        limit: 3
+      - id: ai_ethics_education
+        tags: [ai_ethics]
+        openalex:
+          filter:
+            title.search: AI ethics education
+            from_publication_date: "2022-01-01"
+        limit: 3
+      - id: ai_epmc_conversational
+        tags: [conversational_ai]
+        europepmc:
+          query: "conversational agent AND children AND (PUB_YEAR:2024 OR PUB_YEAR:2025 OR PUB_YEAR:2026)"
+        limit: 3
+
+  china_family:
+    quota: 22
+    queries:
+      - id: cn_academic_stress
+        tags: [academic_pressure]
+        openalex:
+          filter:
+            title.search: academic stress China
+        limit: 3
+      - id: cn_academic_pressure
+        tags: [academic_pressure]
+        openalex:
+          filter:
+            title.search: academic pressure Chinese
+        limit: 3
+      - id: cn_homework
+        tags: [homework]
+        openalex:
+          filter:
+            title.search: homework Chinese
+        limit: 3
+      - id: cn_parenting
+        tags: [parenting_styles]
+        openalex:
+          filter:
+            title.search: parenting Chinese children
+        limit: 3
+      - id: cn_srl
+        tags: [self_regulated_learning]
+        openalex:
+          filter:
+            title.search: self-regulated learning Chinese
+        limit: 3
+      - id: cn_emotion
+        tags: [emotion_regulation]
+        openalex:
+          filter:
+            title.search: emotion regulation Chinese
+        limit: 3
+      - id: cn_cfps
+        tags: [cfps, survey_research]
+        openalex:
+          search: China Family Panel Studies
+        limit: 4
+      - id: cn_ceps
+        tags: [ceps, survey_research]
+        openalex:
+          search: China Education Panel Survey
+        limit: 4
+      - id: zh_executive_function
+        tags: [executive_function, chinese_language]
+        openalex:
+          search: "执行功能 儿童"
+        limit: 3
+      - id: zh_family_education
+        tags: [family_education, chinese_language]
+        openalex:
+          search: "小学生 家庭教育"
+        limit: 3
+      - id: zh_learning_motivation
+        tags: [motivation, chinese_language]
+        openalex:
+          search: "学习动机 小学生"
+        limit: 3
+      - id: cn_education_anxiety
+        tags: [education_anxiety]
+        openalex:
+          filter:
+            title.search: education anxiety China
+        limit: 2
+      - id: cn_engagement
+        tags: [engagement]
+        openalex:
+          filter:
+            title.search: student engagement China
+        limit: 2
+      - id: cn_eric_elementary
+        tags: [primary_school, china]
+        eric:
+          query: China AND elementary school students AND peerreviewed:T
+        limit: 3
+      - id: cn_journal_classics
+        tags: [chinese_journal, chinese_language]
+        openalex:
+          filter:
+            primary_location.source.id: S4306548924|S4306548927|S4210189644|S4306548935
+            type: article
+          sort: cited_by_count:desc
+        limit: 8
+      - id: cn_journal_recent_ef
+        tags: [executive_function, chinese_journal, chinese_language]
+        openalex:
+          search: "执行功能"
+          filter:
+            primary_location.source.id: S4306548924|S4306548927|S4210189644|S4306548935
+            from_publication_date: "2018-01-01"
+        limit: 4
+      - id: cn_journal_recent_family
+        tags: [parenting, chinese_journal, chinese_language]
+        openalex:
+          search: "父母教养"
+          filter:
+            primary_location.source.id: S4306548924|S4306548927|S4210189644|S4306548935
+            from_publication_date: "2018-01-01"
+        limit: 4
+      - id: cn_journal_recent_emotion
+        tags: [emotion_regulation, chinese_journal, chinese_language]
+        openalex:
+          search: "情绪调节"
+          filter:
+            primary_location.source.id: S4306548924|S4306548927|S4210189644|S4306548935
+            from_publication_date: "2018-01-01"
+        limit: 4
