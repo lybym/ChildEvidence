@@ -81,7 +81,10 @@
 
 ## 8. 提交记录
 
-（首个提交 SHA 在提交后由第二次提交回填于此。）
+- 首个提交：`950dcd8a385e93539dcc0862e5d791c57ac567aa`
+  `chore: import ChildEvidence v0.1 from LumiThink Research Library`
+  （48 个文件，8970 行；`data/` 按规则未入库）
+- 本小节由第二次提交回填，记录首个提交 SHA。
 
 ## 9. 回滚方式
 
