@@ -85,6 +85,22 @@ class ParsingConfig:
         if self.concurrency != 1:
             # issue #3: limit concurrency; parallel parsing is out of scope v1
             raise ValueError("parser.concurrency must be 1 in this version")
+        if self.ocr_enabled:
+            # The adapter hardcodes do_ocr=False (POC baseline; OCR is a
+            # separate later decision). Accepting true here would silently
+            # change artifact identity (options_hash) while changing nothing
+            # about the output — a configuration lie. Reject until OCR is a
+            # real, separately decided feature.
+            raise ValueError(
+                "docling.ocr_enabled=true is not supported in this version "
+                "(issue #3 baseline is text-layer only); leave it false")
+
+        if self.models_dir is None:
+            # Aligned default: the same directory `parse models` populates when
+            # no explicit --artifacts-dir / config path is given, so the
+            # documented flow (README §2 install -> §3 run) works out of the
+            # box instead of ending in a permanent ModelUnavailable.
+            self.models_dir = self.base.data_dir / "parse-models"
 
     # ------------------------------------------------------------------
     _output_root_override: Path | None = None

@@ -151,6 +151,59 @@ class ValidatorTests(unittest.TestCase):
         self.assertEqual([], validate_result(doc))
 
 
+def _valid_table(**prov_over) -> dict:
+    return {
+        "table_id": "t1", "reading_order_index": 2, "physical_page_no": 1,
+        "printed_page_no": None, "n_rows": 1, "n_cols": 2,
+        "cells": [["a", "b"]], "extraction_method": "m", "issues": [],
+        "provenance": {"origin": "x", "bbox": [0, 0, 10, 10],
+                       "bbox_space": "pdf_points_y_down", "page_size": None,
+                       "char_span_space": None,
+                       "localization": {"status": "recorded", "verified": False},
+                       **prov_over},
+    }
+
+
+class TableValidatorParityTests(unittest.TestCase):
+    """Tables get the same page-reference and localization discipline as
+    paragraphs (validator-as-contract parity, review round 1 §5)."""
+
+    def test_valid_table_passes(self):
+        doc = minimal_doc()
+        doc["tables"] = [_valid_table()]
+        self.assertEqual([], validate_result(doc))
+
+    def test_table_page_reference_enforced(self):
+        doc = minimal_doc()
+        tbl = _valid_table()
+        tbl["physical_page_no"] = 9  # document has only page 1
+        doc["tables"] = [tbl]
+        self.assertTrue(any("physical_page_no" in e for e in validate_result(doc)))
+
+    def test_table_bbox_claiming_verified_rejected(self):
+        doc = minimal_doc()
+        doc["tables"] = [_valid_table(
+            localization={"status": "recorded", "verified": True})]
+        self.assertTrue(any("verified" in e for e in validate_result(doc)))
+
+    def test_table_bbox_without_recorded_status_rejected(self):
+        doc = minimal_doc()
+        doc["tables"] = [_valid_table(
+            localization={"status": "unavailable", "verified": False})]
+        self.assertTrue(any("recorded" in e for e in validate_result(doc)))
+
+    def test_table_malformed_bbox_rejected(self):
+        doc = minimal_doc()
+        doc["tables"] = [_valid_table(bbox=[1, 2, 3])]
+        self.assertTrue(any("bbox" in e for e in validate_result(doc)))
+
+    def test_table_missing_bbox_requires_unavailable(self):
+        doc = minimal_doc()
+        doc["tables"] = [_valid_table(bbox=None,
+                                      localization={"status": "recorded", "verified": False})]
+        self.assertTrue(any("unavailable" in e for e in validate_result(doc)))
+
+
 class CidcheckTests(unittest.TestCase):
     def test_replacement_chars(self):
         # below the ratio-noise threshold (len<200) any replacement char flags

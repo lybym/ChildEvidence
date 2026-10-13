@@ -13,7 +13,7 @@
 | 解析器（回退） | pdfplumber==0.11.10（本批**未触发**） |
 | 运行方式 | 隔离 venv（Python 3.12.14），`pip install ".[parsing]"`；核心 CLI 零依赖不受影响 |
 | 模型权重 | layout（heron，torch+onnx 变体）+ TableFormer（accurate/fast），缓存
-  `C:\Users\lybym\OneDrive\WORK\.ce03-models\`（**不入 Git**）；经 `research parse models`
+  `<WORK>\.ce03-models\`（仓库外工作区目录，**不入 Git**）；经 `research parse models`
   下载（HF 镜像 hf-mirror.com，`HF_HUB_DISABLE_XET=1` 经典 HTTP），`--verify-only`
   逐文件 SHA-256 校验 **verified**（53 文件） |
 | OCR | 关闭（`docling.ocr_enabled: false`，POC 基线；扫描页只会被标记，不会被 OCR 掩盖） |
@@ -25,7 +25,7 @@
 
 ```powershell
 $env:PYTHONPATH = "src"
-$env:CHILDEVIDENCE_PARSING_MODELS_DIR = "C:\Users\lybym\OneDrive\WORK\.ce03-models"
+$env:CHILDEVIDENCE_PARSING_MODELS_DIR = "<WORK>\.ce03-models"
 # 一次性权重下载（唯一联网步骤，需显式授权）：
 python -m research_library parse models --artifacts-dir $env:CHILDEVIDENCE_PARSING_MODELS_DIR
 # 离线批量解析（产物版本化、幂等、断点续跑）：
@@ -38,8 +38,15 @@ python -m research_library parse report --manifest <manifest.json> --format md
 
 ## 3. 结果汇总
 
-- **total 10 / parsed 10 / skipped 0 / failed 0 / integrity_failed 0；status：`ok` ×10**
-  （无 degraded / fallback / failed——失败与降级路径由单测覆盖，见 §7）
+> 本记录对应 Review Round-1 修复后的代码（含独立页数交叉守卫与显式
+> PARTIAL_SUCCESS 处理；末次 `--force` 全量重跑生成，UTC 2026-10-13T16:32）。
+
+- **total 10 / parsed 10 / skipped 0 / failed 0 / integrity_failed 0；
+  status：`ok` ×9 + `degraded` ×1**（无 fallback / failed）
+- **唯一 degraded**：`lt-f16c456c15ea`，`page_count_mismatch`——独立 pdfcheck 原始
+  扫描报 26 页（best-effort 把增量更新中的旧页对象重复计数），docling 产出 13 页。
+  守卫按"宁响勿静"设计标记 degraded 并要求人工复核，内容完整保留、不丢弃；
+  其余 9 份独立页数与解析页数完全一致。
 - 解析器：docling ×10；语言检测：en ×6、mixed ×2、zh ×2
   （清单声明类别：en_regular ×4、zh ×3、short ×1、long_report ×1、review_meta ×1）
 - 段落 2109（全部携带 bbox）、表格 45（全部携带 bbox）、章节结构正常生成；
@@ -65,24 +72,28 @@ python -m research_library parse report --manifest <manifest.json> --format md
 | 运行 | 结果 | 墙钟 |
 |---|---|---|
 | 首跑（全量解析） | 10 parsed / 0 failed，rc=0 | ≈15.2 min |
-| 立即重跑（同输入同版本同配置） | **10 skipped / 0 parsed**，rc=0 | 5–8 s |
-| `--force` 重跑（代码修订后重生成） | 10 re-parsed，状态/计数与首跑一致 | ≈13.7 min |
-| 终验重跑 | 10 skipped（artifact_id 稳定复用），rc=0 | 5 s |
+| 立即重跑（同输入同版本同配置） | **10 skipped / 0 parsed**，rc=0 | 5–13 s |
+| Review 修复后幂等重跑（守卫生效下） | **10 skipped / 0 parsed**（合法复用不受跨文档守卫影响），rc=0 | 13 s |
+| Review 修复后 `--force` 全量重跑 | 10 re-parsed：9 ok + 1 degraded（§3 页数守卫案例），0 failed | ≈13.7 min |
 
 ## 6. 运行开销
 
-- `duration_sec`（逐文档，subprocess 计时）：min 14.5 / mean 85.5 / max 221.2 / total 854.8 s
+- `duration_sec`（逐文档，subprocess 计时，末次全量重跑）：min 16.0 / mean 81.8 /
+  max 229.2 / total 817.8 s
 - `peak_memory_mb`：本报告为 **n/a（诚实 null）**——见 §8 会话限制；非沙盒 Windows
   环境由 runner 子进程自测（psapi）填充该字段，缺失时报告保持 null 而非伪造数值。
 
 ## 7. 覆盖边界（本 E2E 证明了什么 / 没证明什么）
 
-- **证明了**：10 份真实 POC PDF 全部成功解析且输出通过 `ce03-parse v1` 结构校验；
-  无静默丢页（`page_count` 与逐页记录一致）；溯源字段完整；同配置可幂等重现。
+- **证明了**：10 份真实 POC PDF 全部成功或显式标记地解析，输出通过
+  `ce03-parse v1` 结构校验；无静默丢页——独立页数扫描与解析结果逐份核对，
+  唯一分歧（raw 扫描高估）被显式标记为 degraded 而非静默通过；溯源字段完整；
+  同配置可幂等重现（守卫不破坏合法复用）。
 - **没有证明**：定位正确性（CE-04 职责）；OCR / 扫描页路径（OCR 关闭，E2E 样本
-  未触发降级）——损坏 PDF、乱码、0 文本、超时、回退、模型不可用、缓存污染等
-  失败模式由 `tests/test_parsing_{pipeline,cli,report,schema}.py`（62 项新测试，
-  全库 165 项 + smoke_offline 全绿）覆盖。
+  未触发）——损坏 PDF、乱码、0 文本、超时、回退、模型不可用、缓存污染、
+  PARTIAL_SUCCESS、页数不一致、内存上限、并发配置拒绝等失败模式由
+  `tests/test_parsing_{pipeline,cli,report,schema}.py`（83 项新测试，
+  全库 185 项 + smoke_offline 全绿）覆盖。
 
 ## 8. 已知会话限制（记录在案，不伪造数值）
 
@@ -106,16 +117,19 @@ python -m research_library parse report --manifest <manifest.json> --format md
 
 | document_id | sha12 | status | parser | pages | paras(bbox) | tables(bbox) | issues | duration_s |
 |---|---|---|---|---:|---|---|---|---:|
-| lt-3a3cfbaa18fd | 390ee252b0c6 | ok | docling | 54 | 241(241) | 7(7) | - | 221.2 |
-| lt-1183287e1b1c | 7e68df2f632d | ok | docling | 19 | 238(238) | 5(5) | - | 159.1 |
-| lt-66fdcac87579 | 804e8b3dbc8f | ok | docling | 18 | 311(311) | 6(6) | - | 57.6 |
-| lt-f16c456c15ea | 875b76006d0e | ok | docling | 13 | 154(154) | 0(0) | - | 38.0 |
-| lt-580de6652a2c | aca275c33eb8 | ok | docling | 26 | 218(218) | 6(6) | - | 96.6 |
-| lt-ff6789b6c543 | ce082b98a83f | ok | docling | 13 | 181(181) | 0(0) | - | 38.0 |
-| lt-dab4d327e195 | e0080d1ee67d | ok | docling | 14 | 222(222) | 0(0) | - | 38.6 |
-| lt-ad6c6f6b125c | e089f7e74779 | ok | docling | 23 | 132(132) | 13(13) | - | 100.6 |
-| lt-2f7e083d392e | f46b53fc42c3 | ok | docling | 2 | 29(29) | 0(0) | - | 14.5 |
-| lt-37ad5059c0f3 | fbb1e15333f5 | ok | docling | 26 | 383(383) | 8(8) | - | 90.6 |
+| lt-3a3cfbaa18fd | 390ee252b0c6 | ok | docling | 54 | 241(241) | 7(7) | - | 229.2 |
+| lt-1183287e1b1c | 7e68df2f632d | ok | docling | 19 | 238(238) | 5(5) | - | 157.1 |
+| lt-66fdcac87579 | 804e8b3dbc8f | ok | docling | 18 | 311(311) | 6(6) | - | 48.1 |
+| lt-f16c456c15ea | 875b76006d0e | degraded | docling | 13 | 154(154) | 0(0) | - | 38.5 |
+| lt-580de6652a2c | aca275c33eb8 | ok | docling | 26 | 218(218) | 6(6) | - | 93.6 |
+| lt-ff6789b6c543 | ce082b98a83f | ok | docling | 13 | 181(181) | 0(0) | - | 37.0 |
+| lt-dab4d327e195 | e0080d1ee67d | ok | docling | 14 | 222(222) | 0(0) | - | 36.1 |
+| lt-ad6c6f6b125c | e089f7e74779 | ok | docling | 23 | 132(132) | 13(13) | - | 83.1 |
+| lt-2f7e083d392e | f46b53fc42c3 | ok | docling | 2 | 29(29) | 0(0) | - | 16.0 |
+| lt-37ad5059c0f3 | fbb1e15333f5 | ok | docling | 26 | 383(383) | 8(8) | - | 79.1 |
+
+> degraded 行 = §3 所述 `page_count_mismatch`（独立 raw 扫描 26 vs docling 13，
+> 增量更新旧页对象重复计数；内容完整保留，待人工复核页数口径）。
 
 ## 11. 参照来源声明
 

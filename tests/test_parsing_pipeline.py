@@ -320,16 +320,77 @@ class PipelineTests(unittest.TestCase):
         self.assertEqual("childevidence.parse", rebuilt["schema"]["name"])
 
     def test_foreign_result_json_rejected_as_pollution(self):
-        a_dir = self.cfg.output_root / ("a" * 12) / "pa-notmine"
+        from research_library.pdfcheck import sha256_file
+
+        # the foreign file lives under THIS document's sha12 directory, where
+        # the reuse scan actually looks (a dir under another sha12 is simply
+        # not visited)
+        a_dir = self.cfg.output_root / sha256_file(self.pdf)[:12] / "pa-notmine"
         a_dir.mkdir(parents=True, exist_ok=True)
         (a_dir / "result.json").write_text(json.dumps({"hello": "world"}), encoding="utf-8")
         inter = make_inter()
         with mock.patch.object(pl, "get_adapter", fake_factory({"fake": inter})):
-            outcome = self.run_parse()
+            outcome = pl.run_document(self.pdf, self.cfg, document_id="doc-a")
         self.assertEqual("parsed", outcome["action"])
+        # "警告 + 重建" policy covers foreign dicts, not just unreadable JSON
+        self.assertTrue(any("not a parse result" in w for w in outcome["warnings"]),
+                        f"expected a pollution warning, got {outcome['warnings']}")
         self.assertEqual("childevidence.parse",
                          json.loads(Path(outcome["output_dir"], "result.json")
                                     .read_text(encoding="utf-8"))["schema"]["name"])
+
+    def test_cross_document_cache_pollution_rebuilds(self):
+        # P1-1: a schema-VALID result.json copied from another document must
+        # never be adopted silently — reuse requires source-sha agreement.
+        inter = make_inter()
+        first = self.run_parse()
+        legit_dir = Path(first["output_dir"])
+        foreign = json.loads((legit_dir / "result.json").read_text(encoding="utf-8"))
+        foreign["source"]["sha256"] = "b" * 64  # describes another document
+        foreign_dir = self.cfg.output_root / first["sha256"][:12] / "pa-foreign"
+        foreign_dir.mkdir(parents=True, exist_ok=True)
+        (foreign_dir / "result.json").write_text(json.dumps(foreign), encoding="utf-8")
+        import shutil
+        shutil.rmtree(legit_dir)  # only the foreign copy remains
+        with mock.patch.object(pl, "get_adapter", fake_factory({"fake": inter})):
+            outcome = self.run_parse()
+        self.assertEqual("parsed", outcome["action"])  # rebuilt, NOT skipped
+        self.assertTrue(any("different source document" in w for w in outcome["warnings"]))
+        result = json.loads(Path(outcome["output_dir"], "result.json").read_text(encoding="utf-8"))
+        self.assertEqual(first["sha256"], result["source"]["sha256"])
+        self.assertNotEqual(foreign_dir, Path(outcome["output_dir"]))
+
+    def test_partial_success_degraded_with_converter_errors(self):
+        # P1-2: docling PARTIAL_SUCCESS must surface as degraded with the
+        # converter's own error list — never as a fully successful parse.
+        inter = make_inter()
+        inter["conversion_partial"] = {
+            "conversion_status": "ConversionStatus.PARTIAL_SUCCESS",
+            "errors": ["page 3: layout model failed"],
+        }
+        with mock.patch.object(pl, "get_adapter", fake_factory({"fake": inter})):
+            outcome = pl.run_document(self.pdf, self.cfg, document_id="doc-a")
+        self.assertEqual("degraded", outcome["status"])
+        result = json.loads(Path(outcome["output_dir"], "result.json").read_text(encoding="utf-8"))
+        reasons = [r["code"] for r in result["failure_reasons"]]
+        self.assertIn("conversion_partial_success", reasons)
+        partial = [r for r in result["failure_reasons"]
+                   if r["code"] == "conversion_partial_success"][0]
+        self.assertIn("PARTIAL_SUCCESS", partial["message"])
+        self.assertIn("page 3", partial["message"])
+
+    def test_page_count_mismatch_degraded(self):
+        # P1-2: the independent pdfcheck page scan must be cross-checked — a
+        # parser claiming more pages than the file contains is flagged loudly.
+        inter = make_inter()
+        inter["page_count"] = 3
+        inter["pages"].append({"physical_page_no": 3, "width": None, "height": None,
+                               "text": "ghost page"})
+        with mock.patch.object(pl, "get_adapter", fake_factory({"fake": inter})):
+            outcome = pl.run_document(self.pdf, self.cfg, document_id="doc-a")
+        self.assertEqual("degraded", outcome["status"])
+        result = json.loads(Path(outcome["output_dir"], "result.json").read_text(encoding="utf-8"))
+        self.assertIn("page_count_mismatch", [r["code"] for r in result["failure_reasons"]])
 
     def test_page_map_manual_corrections_applied_physical_untouched(self):
         self.cfg.corrections_dir.mkdir(parents=True, exist_ok=True)
@@ -376,6 +437,58 @@ class PipelineTests(unittest.TestCase):
         with mock.patch.object(pl, "get_adapter", fake_factory({"fake": inter})):
             summary = pl.run_batch(pl.load_manifest(manifest), self.cfg)
         self.assertEqual(1, summary["integrity_failed"])
+
+    def test_batch_missing_file_counts_in_integrity_bucket(self):
+        # resolve-stage failures use the same taxonomy as run_document's own
+        # missing_file (integrity_failed), not the generic failed bucket
+        manifest = self.tmp / "manifest.json"
+        manifest.write_text(json.dumps({"documents": [
+            {"document_id": "gone", "path": str(self.tmp / "nope.pdf")},
+        ]}), encoding="utf-8")
+        summary = pl.run_batch(pl.load_manifest(manifest), self.cfg)
+        self.assertEqual(1, summary["integrity_failed"])
+        self.assertEqual(0, summary["failed"])
+
+    def test_corrections_applied_on_plain_rerun_after_first_parse(self):
+        # P2-2 / docs §6: corrections added AFTER the first parse take effect
+        # on the next ordinary run (no --force), without re-parsing.
+        first = self.run_parse()
+        self.assertEqual("parsed", first["action"])
+        result_path = Path(first["output_dir"], "result.json")
+        before = result_path.read_bytes()
+        self.cfg.corrections_dir.mkdir(parents=True, exist_ok=True)
+        (self.cfg.corrections_dir / "doc-a.json").write_text(
+            json.dumps([{"physical_page_no": 1, "printed_page_no": 7, "note": "human"}]),
+            encoding="utf-8")
+        second = self.run_parse()  # plain rerun
+        self.assertEqual("skipped", second["action"])
+        self.assertTrue(any("corrections applied on skip" in w for w in second["warnings"]))
+        result = json.loads(result_path.read_text(encoding="utf-8"))
+        self.assertEqual(7, result["pages"][0]["printed_page_no"])
+        self.assertEqual("manual", result["pages"][0]["printed_page_origin"])
+        self.assertEqual(1, result["artifact"]["page_map_applied"]["applied"])
+        self.assertNotEqual(before, result_path.read_bytes())
+        # rerunning again changes nothing (byte-stable, no duplicate audit rows)
+        snapshot = result_path.read_bytes()
+        third = self.run_parse()
+        self.assertEqual("skipped", third["action"])
+        self.assertEqual(snapshot, result_path.read_bytes())
+
+    def test_cross_check_default_off_runs_primary_only(self):
+        inter = make_inter()
+        calls = []
+
+        def tracking_factory(name, **kwargs):
+            calls.append(name)
+            return fake_factory({"fake": inter})(name, **kwargs)
+
+        with mock.patch.object(pl, "get_adapter", tracking_factory):
+            outcome = pl.run_document(self.pdf, self.cfg, document_id="doc-a")
+        self.assertEqual("ok", outcome["status"])
+        # exactly probe + primary parse are constructed; no fallback parser,
+        # no cross-check second pass, no review queue
+        self.assertEqual(["fake", "fake"], calls)
+        self.assertFalse((self.cfg.output_root / "parse-review-queue").exists())
 
     def test_cross_check_conflict_writes_review_task(self):
         inter = make_inter()
@@ -469,6 +582,110 @@ class SubprocessTimeoutTests(unittest.TestCase):
         if "_peak_memory_mb" in inter:
             self.assertIsInstance(inter["_peak_memory_mb"], float)
             self.assertGreater(inter["_peak_memory_mb"], 0.0)
+
+    def test_chatty_stderr_no_false_timeout(self):
+        # P2-1: a child that floods stderr (~400KB > the OS pipe buffer) must
+        # complete instead of blocking on a full pipe until the timeout kill
+        # and being misattributed as a timeout.
+        self.cfg.timeout_sec = 30
+        chatty = self.tmp / "chatty_parser.py"
+        chatty.write_text(
+            "import sys\n"
+            "class Parser:\n"
+            "    def parse(self, pdf_path, options):\n"
+            "        sys.stderr.write('x' * 80 + '\\n' * 1)  # 81 B\n"
+            "        for _ in range(5000):\n"
+            "            sys.stderr.write('WARN ' + 'y' * 76 + '\\n')\n"
+            "        return {'format_version': 1, 'parser': {'name': 'stub',"
+            " 'parser_version': '0'}, 'page_count': 1,\n"
+            "                'pages': [{'physical_page_no': 1, 'width': None,"
+            " 'height': None, 'text': 'hello'}], 'items': [],"
+            " 'language_hint': 'en', 'warnings': []}\n",
+            encoding="utf-8")
+        inter = pl._run_adapter("stub", self.pdf, {}, self.cfg, parser_module=str(chatty))
+        self.assertEqual(1, inter["page_count"])
+
+    def test_memory_cap_kills_subprocess(self):
+        # memory-cap enforcement path: the poll loop reads the child's working
+        # set (mocked here so the test is deterministic under sandboxed psapi)
+        # and kills the process when it exceeds the configured cap.
+        cfg = make_cfg(self.tmp)
+        cfg.execution = "subprocess"
+        cfg.max_memory_mb = 64
+        slow = self.tmp / "slow_parser.py"
+        slow.write_text(
+            "import time\n"
+            "class Parser:\n"
+            "    def parse(self, pdf_path, options):\n"
+            "        time.sleep(20)\n"
+            "        raise RuntimeError('should have been killed for memory')\n",
+            encoding="utf-8")
+        with mock.patch.object(pl, "get_memory_info_mb",
+                               lambda pid: (4096.0, 4096.0)), \
+                mock.patch.object(pl.time, "sleep", lambda _s: None):
+            with self.assertRaises(pl.AdapterError) as cm:
+                pl._run_adapter("stub", self.pdf, {}, cfg, parser_module=str(slow))
+        self.assertIn("memory cap", str(cm.exception))
+
+
+class AdapterGuardTests(unittest.TestCase):
+    def test_classify_conversion_never_treats_partial_as_success(self):
+        from research_library.parsing.adapters.docling_adapter import classify_conversion
+
+        self.assertEqual("ok", classify_conversion("ConversionStatus.SUCCESS"))
+        self.assertEqual("partial", classify_conversion("ConversionStatus.PARTIAL_SUCCESS"))
+        self.assertEqual("failure", classify_conversion("ConversionStatus.FAILURE"))
+        self.assertEqual("failure", classify_conversion("ConversionStatus.PENDING"))
+        self.assertEqual("failure", classify_conversion("unknown"))
+        self.assertEqual("failure", classify_conversion(""))
+
+    def test_offline_env_forced_not_punched_through(self):
+        # P2-3: offline.mode=true must FORCE the guards; an inherited
+        # HF_HUB_OFFLINE=0 from the user environment must not survive.
+        import os
+
+        from research_library.parsing.adapters.docling_adapter import DoclingParser
+
+        adapter = DoclingParser(models_dir=None, offline=True)
+        with mock.patch.dict(os.environ, {"HF_HUB_OFFLINE": "0",
+                                          "TRANSFORMERS_OFFLINE": "0"}):
+            adapter._prepare_offline_env()
+            self.assertEqual("1", os.environ["HF_HUB_OFFLINE"])
+            self.assertEqual("1", os.environ["TRANSFORMERS_OFFLINE"])
+        adapter2 = DoclingParser(models_dir=None, offline=False)
+        with mock.patch.dict(os.environ, {"HF_HUB_OFFLINE": "0"}, clear=False):
+            adapter2._prepare_offline_env()
+            self.assertEqual("0", os.environ["HF_HUB_OFFLINE"])  # untouched
+
+
+class ConfigValidationTests(unittest.TestCase):
+    def _cfg_with_yaml(self, tmp: Path, text: str) -> ParsingConfig:
+        p = tmp / "parsing.yaml"
+        p.write_text(text, encoding="utf-8")
+        return ParsingConfig(base=Config(data_dir=tmp / "data"), config_file=p)
+
+    def setUp(self):
+        self.tmp = make_tmp_dir("parsing-cfg-")
+
+    def tearDown(self):
+        import shutil
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def test_concurrency_two_rejected(self):
+        with self.assertRaises(ValueError):
+            self._cfg_with_yaml(self.tmp, "parser:\n  concurrency: 2\n")
+
+    def test_ocr_enabled_true_rejected(self):
+        # ocr_enabled participates in artifact identity but the adapter
+        # hardcodes do_ocr=False — accepting true would be a config lie
+        with self.assertRaises(ValueError):
+            self._cfg_with_yaml(self.tmp, "docling:\n  ocr_enabled: true\n")
+
+    def test_models_dir_default_aligned_with_models_command(self):
+        # P2-4: run-side default == the directory `parse models` populates
+        # without --artifacts-dir, so the documented install->run flow works
+        cfg = self._cfg_with_yaml(self.tmp, "parser:\n  primary: docling\n")
+        self.assertEqual(self.tmp / "data" / "parse-models", cfg.models_dir)
 
 
 if __name__ == "__main__":

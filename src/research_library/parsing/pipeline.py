@@ -133,12 +133,22 @@ def _find_existing_valid(
             continue
         existing, note = _load_existing_result(art_dir)
         if existing is None:
-            if note and note.startswith("existing result.json unreadable"):
-                # unreadable content in a directory that may not even be ours
+            if note:
+                # keep every pollution flavor visible ("警告 + 重建" policy):
+                # unreadable JSON and schema-foreign dicts are both reported
                 fallback_note = fallback_note or note
             continue
         same_id = (existing.get("artifact") or {}).get("artifact_id") == artifact_id
         if not same_id and not _identity_matches(existing, probe, options_h):
+            continue
+        # Trust-root invariant: a reusable artifact must describe THE source we
+        # just hashed. Parser identity alone is not enough — a schema-valid
+        # result.json copied in from another document would otherwise be
+        # adopted silently (cross-document cache pollution).
+        if (existing.get("source") or {}).get("sha256") != sha:
+            fallback_note = fallback_note or (
+                "existing artifact describes a different source document "
+                "(cross-document cache pollution); rebuilding")
             continue
         errors = validate_result(existing)
         if not errors and existing.get("status") in ("ok", "degraded", "fallback"):
@@ -153,6 +163,47 @@ def _write_atomic(path: Path, text: str) -> None:
     tmp = path.with_suffix(path.suffix + ".tmp")
     tmp.write_text(text, encoding="utf-8")
     os.replace(tmp, path)
+
+
+def _apply_corrections_on_skip(cfg: ParsingConfig, result: dict, a_dir: Path) -> list[str]:
+    """Re-apply human page-map corrections to a reusable artifact (docs §6).
+
+    A plain rerun must make corrections added after the first parse effective
+    without re-parsing. Nothing is rewritten when the corrections produce a
+    byte-identical result (idempotent reruns keep artifacts stable).
+    """
+    doc_id = str(result.get("document_id") or (result.get("source") or {}).get("file_name"))
+    corrections, src = corrections_for_document(cfg.corrections_dir, doc_id)
+    if not corrections:
+        return []
+    try:
+        from .page_map import empty_page_map
+
+        page_map = empty_page_map(int(result.get("page_count") or 0))
+        page_map["document_id"] = doc_id
+        page_map["source_sha256"] = (result.get("source") or {}).get("sha256")
+        page_map = apply_corrections(page_map, corrections, source_file=src)
+    except (ValueError, TypeError) as e:
+        return [f"manual page-map corrections ignored (invalid for this artifact): {e}"]
+    sync_pages_from_map(result, page_map)
+    result.setdefault("artifact", {})["page_map_applied"] = {
+        "applied": len(page_map["manual_corrections_applied"]),
+        "source": "manual corrections file",
+    }
+    warnings = [f"manual page-map corrections applied on skip ({len(corrections)} entries)"]
+    result_text = json.dumps(result, ensure_ascii=False, indent=1)
+    r_path = a_dir / "result.json"
+    try:
+        unchanged = r_path.read_text(encoding="utf-8") == result_text
+    except OSError:
+        unchanged = False
+    if not unchanged:
+        _write_atomic(r_path, result_text)
+        _write_atomic(a_dir / "page-map.json",
+                      json.dumps(page_map, ensure_ascii=False, indent=1))
+    else:
+        warnings.append("corrections produce no change; artifact left untouched")
+    return warnings
 
 
 # --------------------------------------------------------------------------
@@ -230,6 +281,13 @@ def run_document(
             outcome["action"] = "skipped"
             outcome["parser"] = (existing.get("parser") or {}).get("name")
             outcome["duration_sec"] = round(time.perf_counter() - started, 3)
+            # docs/parsing/README.md §6: corrections added AFTER the first parse
+            # take effect on the next (non-forced) run — re-apply them to the
+            # reusable artifact instead of re-parsing.
+            outcome["warnings"] = (outcome["warnings"] + _apply_corrections_on_skip(
+                cfg, existing, Path(existing_dir)))[:20]
+            if outcome["warnings"]:
+                _write_run_meta(Path(existing_dir), outcome)
             return outcome
 
     # ---- stage 2+3: parse + normalize ------------------------------------
@@ -301,6 +359,43 @@ def run_document(
         outcome["duration_sec"] = round(time.perf_counter() - started, 3)
         _write_run_meta(a_dir, outcome)
         return outcome
+
+    # ---- parser-reported partial conversion (issue #3: no silent loss) ----
+    # PARTIAL_SUCCESS must never be reported as a fully successful parse: the
+    # adapter attaches what docling reported and we downgrade to degraded with
+    # the converter's own error list attached.
+    partial = inter.pop("conversion_partial", None)
+    if partial:
+        result["failure_reasons"].append({
+            "stage": "parse",
+            "code": "conversion_partial_success",
+            "message": (
+                f"docling reported {partial.get('conversion_status')}; output may be "
+                f"incomplete. errors: {partial.get('errors') or 'n/a'}"),
+        })
+        if result["status"] == "ok":
+            result["status"] = "degraded"
+        result["warnings"].append(
+            "conversion finished with PARTIAL_SUCCESS; review required")
+
+    # ---- independent page-count cross-check (issue #3: no silent page loss) -
+    # pdfcheck scanned the raw/objstm structure up front; a disagreement with
+    # what the parser produced is a potential dropped/duplicated-page event
+    # and must never pass silently.
+    independent_pages = v.get("page_count")
+    if independent_pages is not None and result.get("page_count") != independent_pages:
+        result["failure_reasons"].append({
+            "stage": "validate",
+            "code": "page_count_mismatch",
+            "message": (
+                f"independent PDF scan reports {independent_pages} pages "
+                f"(method={v.get('page_count_method')}) but the parser produced "
+                f"{result.get('page_count')}; possible dropped/duplicated pages"),
+        })
+        if result["status"] == "ok":
+            result["status"] = "degraded"
+        result["warnings"].append(
+            "page_count mismatch vs independent PDF scan; review required")
 
     # ---- stage 5: human page-map corrections -----------------------------
     page_map = _build_page_map(cfg, result)
@@ -379,34 +474,40 @@ def _run_adapter(parser_name: str, pdf_path: Path, options: dict, cfg: ParsingCo
     tmp_spec.write_text(json.dumps(spec, ensure_ascii=False), encoding="utf-8")
     out_json = Path(spec["out_json"])
     err_json = Path(str(out_json) + ".error")
+    # Child stderr goes to a scratch FILE, never to a pipe: a chatty child
+    # (docling/transformers warnings) would fill the OS pipe buffer and block
+    # until the timeout kill, which would misattribute the failure as a
+    # timeout and wrongly trigger the fallback.
+    err_log = scratch / f"{os.getpid()}-{parser_name}.stderr.log"
     try:
         env = dict(os.environ)
         src_dir = str(Path(__file__).resolve().parents[2])
         env["PYTHONPATH"] = src_dir + (os.pathsep + env["PYTHONPATH"] if env.get("PYTHONPATH") else "")
-        proc = subprocess.Popen(
-            [sys.executable, "-m", "research_library.parsing.runner", str(tmp_spec)],
-            stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
-            cwd=str(Path(__file__).resolve().parents[3]),
-            env=env,
-        )
-        deadline = time.monotonic() + cfg.timeout_sec
-        while proc.poll() is None:
-            if time.monotonic() > deadline:
-                proc.kill()
-                proc.wait(timeout=10)
-                raise ParseTimeout(
-                    f"parser {parser_name} exceeded timeout of {cfg.timeout_sec}s; process killed")
-            if cfg.max_memory_mb:
-                cur, _peak = get_memory_info_mb(proc.pid)
-                if cur is not None and cur > cfg.max_memory_mb:
+        with open(err_log, "wb") as err_fh:
+            proc = subprocess.Popen(
+                [sys.executable, "-m", "research_library.parsing.runner", str(tmp_spec)],
+                stdout=subprocess.DEVNULL, stderr=err_fh,
+                cwd=str(Path(__file__).resolve().parents[3]),
+                env=env,
+            )
+            deadline = time.monotonic() + cfg.timeout_sec
+            while proc.poll() is None:
+                if time.monotonic() > deadline:
                     proc.kill()
                     proc.wait(timeout=10)
-                    raise AdapterError(
-                        f"parser {parser_name} exceeded memory cap {cfg.max_memory_mb}MB; killed")
-            time.sleep(0.5)
+                    raise ParseTimeout(
+                        f"parser {parser_name} exceeded timeout of {cfg.timeout_sec}s; process killed")
+                if cfg.max_memory_mb:
+                    cur, _peak = get_memory_info_mb(proc.pid)
+                    if cur is not None and cur > cfg.max_memory_mb:
+                        proc.kill()
+                        proc.wait(timeout=10)
+                        raise AdapterError(
+                            f"parser {parser_name} exceeded memory cap {cfg.max_memory_mb}MB; killed")
+                time.sleep(0.5)
         stderr_tail = b""
         try:
-            stderr_tail = (proc.stderr.read() or b"")[-2000:]
+            stderr_tail = err_log.read_bytes()[-2000:]
         except Exception:
             pass
         if proc.returncode != 0 or not out_json.exists():
@@ -427,7 +528,7 @@ def _run_adapter(parser_name: str, pdf_path: Path, options: dict, cfg: ParsingCo
         # parent never invents a number.
         return json.loads(out_json.read_text(encoding="utf-8"))
     finally:
-        for p in (tmp_spec, out_json, err_json):
+        for p in (tmp_spec, out_json, err_json, err_log):
             try:
                 p.unlink()
             except OSError:
@@ -594,7 +695,9 @@ def run_batch(
         try:
             pdf_path = resolve_manifest_path(entry, input_root)
         except FileNotFoundError as e:
-            summary["failed"] += 1
+            # same bucket as run_document's own missing_file outcome (an
+            # integrity-stage failure), so the summary keeps one taxonomy
+            summary["integrity_failed"] += 1
             summary["outcomes"].append({
                 "document_id": entry.get("document_id"),
                 "status": "failed", "action": "integrity_failed",

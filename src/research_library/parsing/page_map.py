@@ -106,23 +106,6 @@ def apply_corrections(page_map: dict, corrections: list[dict], source_file: str 
     return merged
 
 
-def load_or_create_page_map(path: Path, page_count: int) -> dict:
-    """Load an existing page map if valid, else create a fresh one."""
-    p = Path(path)
-    if p.exists():
-        try:
-            data = json.loads(p.read_text(encoding="utf-8"))
-            if isinstance(data, dict) and data.get("format_version") == CORRECTIONS_FORMAT_VERSION \
-                    and isinstance(data.get("entries"), list) \
-                    and len(data["entries"]) == page_count:
-                return data
-        except (json.JSONDecodeError, OSError):
-            pass
-        # invalid/foreign content: caller recreates it (cache pollution policy)
-        return None
-    return None
-
-
 def corrections_for_document(corrections_dir: Path, document_id: str) -> tuple[list[dict], str | None]:
     """Find a manual corrections file for a document id.
 

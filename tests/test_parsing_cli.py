@@ -101,6 +101,52 @@ class ParseCliTests(unittest.TestCase):
         self.assertEqual(1, rc)
         self.assertIn("not found", out)
 
+    def test_from_library_readonly_select(self):
+        # P2-6: --from-library is STRUCTURALLY read-only (mode=ro URI — it
+        # cannot run the schema script, create the file, or enable WAL), and
+        # it feeds works with downloaded PDFs into the pipeline.
+        import hashlib
+
+        from research_library import db
+
+        # the fake adapter reports a 2-page document; the seeded PDF must
+        # match, or the new page_count cross-check correctly degrades it
+        self.pdf.write_bytes(make_pdf(pages=2))
+        data_dir = self.tmp / "data"
+        config = cli.Config(data_dir=data_dir)
+        config.ensure_dirs()
+        conn = db.connect(config.db_path)
+        try:
+            conn.execute(
+                "INSERT INTO works (internal_id, title, access_status,"
+                " local_pdf_path, sha256) VALUES (?, ?, 'pdf_downloaded', ?, ?)",
+                ("lt-test000001", "A Seeded Work", str(self.pdf),
+                 hashlib.sha256(self.pdf.read_bytes()).hexdigest()))
+            conn.commit()
+        finally:
+            conn.close()
+        digest_before = hashlib.sha256(config.db_path.read_bytes()).hexdigest()
+        inter = make_inter()
+        argv = ["--data-dir", str(data_dir), "parse", "run", "--from-library"]
+        env = {
+            "CHILDEVIDENCE_PARSING_EXECUTION": "inprocess",
+            "CHILDEVIDENCE_PARSING_PRIMARY": "fake",
+            "CHILDEVIDENCE_PARSING_FALLBACK": "pdfplumber",
+        }
+        with mock.patch.dict(__import__("os").environ, env), \
+                mock.patch.object(pl, "get_adapter", fake_factory({"fake": inter})):
+            rc, out = self.run_cli(argv)
+        self.assertEqual(0, rc)
+        self.assertIn('"parsed": 1', out)
+        # the right document was parsed, under the versioned artifact store
+        arts = list((data_dir / "parse-output").glob("*/*/result.json"))
+        self.assertEqual(1, len(arts))
+        result = json.loads(arts[0].read_text(encoding="utf-8"))
+        self.assertEqual("lt-test000001", result["document_id"])
+        # the library file is byte-identical after the run (zero-write proof)
+        digest_after = hashlib.sha256(config.db_path.read_bytes()).hexdigest()
+        self.assertEqual(digest_before, digest_after)
+
 
 if __name__ == "__main__":
     unittest.main()

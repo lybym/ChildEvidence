@@ -42,6 +42,21 @@ _ITEM_KIND_BY_CLASS = {
 }
 
 
+def classify_conversion(status_str: str) -> str:
+    """Classify a Docling conversion status string: ok | partial | failure.
+
+    Substring matching against bare "SUCCESS" would silently treat
+    PARTIAL_SUCCESS (pages/items dropped by the converter) as a fully
+    successful parse; the classification is explicit and unit-tested.
+    """
+    s = (status_str or "").upper()
+    if "PARTIAL_SUCCESS" in s:
+        return "partial"
+    if "SUCCESS" in s:
+        return "ok"
+    return "failure"
+
+
 class DoclingParser:
     name = "docling"
 
@@ -66,8 +81,11 @@ class DoclingParser:
         if not self.offline:
             return
         # Must be set before docling/transformers import their HF clients.
-        os.environ.setdefault("HF_HUB_OFFLINE", "1")
-        os.environ.setdefault("TRANSFORMERS_OFFLINE", "1")
+        # FORCE (not setdefault): an inherited HF_HUB_OFFLINE=0 from the user
+        # environment must never punch a hole through offline.mode=true —
+        # parse time has no authorization to fetch anything.
+        os.environ["HF_HUB_OFFLINE"] = "1"
+        os.environ["TRANSFORMERS_OFFLINE"] = "1"
 
     def _check_models_available(self) -> None:
         if not self.offline:
@@ -173,8 +191,21 @@ class DoclingParser:
         converter = self._build_converter()
         result = converter.convert(source=Path(pdf_path))
         conv_status = str(getattr(result, "status", "unknown"))
-        if "SUCCESS" not in conv_status.upper():
+        conv_class = classify_conversion(conv_status)
+        if conv_class == "failure":
             raise RuntimeError(f"docling conversion status: {conv_status}")
+        if conv_class == "partial":
+            # PARTIAL_SUCCESS: the converter dropped pages/items. Extract what
+            # exists, but mark the intermediate so the pipeline downgrades the
+            # final status to degraded and records docling's own error list —
+            # never a silent partial document.
+            conv_errors = [str(e)[:300] for e in (getattr(result, "errors", None) or [])[:20]]
+            inter["conversion_partial"] = {
+                "conversion_status": conv_status,
+                "errors": conv_errors,
+            }
+            inter["warnings"].append(
+                f"docling conversion status {conv_status}; output may be incomplete")
 
         docres = result.document
         self._extract(docres, inter)

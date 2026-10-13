@@ -27,65 +27,6 @@ PARAGRAPH_KINDS = (
 LOCALIZATION_STATUSES = ("recorded", "unavailable")
 
 
-def new_document_result() -> dict:
-    """Skeleton of a normalized result (documents are built by normalize.py)."""
-    return {
-        "schema": {"name": SCHEMA_NAME, "version": SCHEMA_VERSION},
-        "document_id": None,
-        "source": {
-            "path": None,
-            "file_name": None,
-            "size_bytes": None,
-            "sha256": None,
-            "integrity": {"header_ok": None, "eof_ok": None, "validated": None},
-        },
-        "parser": {
-            "name": None,
-            "parser_version": None,
-            "model_versions": {},
-            "dependency_versions": {},
-            "options": {},
-            "options_hash": None,
-        },
-        "status": None,
-        "failure_reasons": [],
-        "warnings": [],
-        "issues": [],
-        "language": "unknown",
-        "page_count": None,
-        "pages": [],
-        "sections": [],
-        "paragraphs": [],
-        "tables": [],
-        "references": {
-            "supported_by_parser": None,
-            "items": None,
-            "note": None,
-        },
-        "localization_summary": {
-            "paragraphs_total": None,
-            "paragraphs_with_bbox": None,
-            "tables_total": None,
-            "tables_with_bbox": None,
-            "bbox_presence_rate": None,
-            "localization_accuracy": None,
-            "notes": None,
-        },
-        "provenance": {
-            "produced_at_utc": None,
-            "duration_sec": None,
-            "peak_memory_mb": None,
-            "transform_chain": [],
-            "normalize_version": f"{SCHEMA_NAME}/{SCHEMA_VERSION}",
-        },
-        "artifact": {
-            "artifact_id": None,
-            "output_dir": None,
-            "page_map_applied": None,
-        },
-    }
-
-
 # --------------------------------------------------------------------------
 # validation
 # --------------------------------------------------------------------------
@@ -175,7 +116,8 @@ def validate_result(doc: dict) -> list[str]:
     for i, tbl in enumerate(doc.get("tables") or []):
         tid = tbl.get("table_id")
         if not tid:
-            _err(errors, f"tables[{i}].table_id: missing")
+            _err(errors, f"tables[{i}] ({tid or i}): table_id missing")
+            tid = tid or f"tables[{i}]"
         cells = tbl.get("cells")
         if cells is not None:
             if not isinstance(cells, list):
@@ -184,8 +126,21 @@ def validate_result(doc: dict) -> list[str]:
                 # ragged grids are allowed only when flagged
                 if "table_ragged_grid" not in (tbl.get("issues") or []):
                     _err(errors, f"tables[{i}] ({tid}): ragged cells without issue flag table_ragged_grid")
+        # page reference + bbox/localization pairing must hold for tables with
+        # the same strength as for paragraphs (validator-as-contract parity)
+        pp = tbl.get("physical_page_no")
+        if pp is not None and pp not in page_nos:
+            _err(errors, f"tables[{i}] ({tid}): physical_page_no {pp!r} not in pages")
         prov = tbl.get("provenance") or {}
-        if prov.get("bbox") is None and (prov.get("localization") or {}).get("status") != "unavailable":
+        if prov.get("bbox") is not None:
+            if not (isinstance(prov.get("bbox"), list) and len(prov["bbox"]) == 4
+                    and all(isinstance(v, (int, float)) for v in prov["bbox"])):
+                _err(errors, f"tables[{i}] ({tid}): bbox must be [l,t,r,b] numbers or null")
+            if prov.get("localization", {}).get("status") != "recorded":
+                _err(errors, f"tables[{i}] ({tid}): bbox present but localization.status != recorded")
+            if prov.get("localization", {}).get("verified") is not False:
+                _err(errors, f"tables[{i}] ({tid}): localization.verified must be false in parse layer")
+        elif (prov.get("localization") or {}).get("status") != "unavailable":
             _err(errors, f"tables[{i}] ({tid}): no bbox but localization.status != unavailable")
 
     refs = doc.get("references") or {}

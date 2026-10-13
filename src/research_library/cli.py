@@ -409,12 +409,23 @@ def cmd_parse(args, config: Config) -> int:
         elif args.pdf:
             entries = [{"document_id": args.document_id, "path": args.pdf}]
         elif args.from_library:
-            conn = db.connect(config.db_path)
-            rows = conn.execute(
-                "SELECT internal_id, local_pdf_path, sha256 FROM works"
-                " WHERE access_status='pdf_downloaded'"
-            ).fetchall()
-            conn.close()
+            # Structurally read-only: a mode=ro URI can never run the schema
+            # script, create the file, or switch WAL — unlike db.connect(),
+            # whose zero-write behavior here would be incidental.
+            import sqlite3
+            from urllib.parse import quote
+
+            ro_uri = "file:" + quote(Path(config.db_path).resolve().as_posix(),
+                                    safe="/:") + "?mode=ro"
+            conn = sqlite3.connect(ro_uri, uri=True)
+            conn.row_factory = sqlite3.Row
+            try:
+                rows = conn.execute(
+                    "SELECT internal_id, local_pdf_path, sha256 FROM works"
+                    " WHERE access_status='pdf_downloaded'"
+                ).fetchall()
+            finally:
+                conn.close()
             entries = [
                 {"document_id": r["internal_id"], "path": r["local_pdf_path"],
                  "sha256": r["sha256"]}
