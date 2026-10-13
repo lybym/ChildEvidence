@@ -1,0 +1,87 @@
+{
+  "$schema_name": "childevidence-ce01r-rq-registry",
+  "$schema_version": 1,
+  "status": "DRAFT v1.1 (pending human approval; not an effective rule)",
+  "title": "研究问题（RQ）注册对象契约（轨道 B 专用，文件级，不含 SQLite 迁移）",
+  "description": "RESEARCH_METHODOLOGY §6 的机器可校验形态。RQ 对象只能由人工批准转 active；Agent 可起草（registered 之前）但不得自批。落库建表与迁移另行立项（AGENTS #11）。",
+  "lifecycle": {
+    "states": ["registered", "active", "paused", "retired"],
+    "transitions_allowed": [
+      {"from": "registered", "to": "active", "requires": "human approved_by 签署"},
+      {"from": "active", "to": "paused", "requires": "人工决策 + 理由"},
+      {"from": "paused", "to": "active", "requires": "人工决策 + 理由"},
+      {"from": ["active", "paused"], "to": "retired", "requires": "人工决策 + retire_reason"}
+    ],
+    "transitions_forbidden": [
+      {"from": "retired", "to": "active", "reason": "终态；恢复须新建版本"},
+      {"from": "registered", "to": "active", "requires_note": "无 approved_by 不得转 active（Agent 不得自批）"}
+    ]
+  },
+  "versioning_rules": [
+    "实质修改（question/scope/入排要点）必须递增 version 并写 history",
+    "检索式微调（同版本内）在 runs.notes 留痕，不改 version",
+    "历史版本只保留不删除；review 决策引用产生时点的 RQ 版本"
+  ],
+  "schema": {
+    "type": "object",
+    "required": ["rq_id", "version", "question", "background", "scope", "search_queries", "inclusion_hints", "exclusion_hints", "domain", "status", "created_by", "approved_by", "history"],
+    "properties": {
+      "rq_id": {"type": "string", "pattern": "^rq-[a-z0-9-]+$"},
+      "version": {"type": "integer"},
+      "question": {"type": "string", "minLength": 8},
+      "background": {"type": "string", "minLength": 8},
+      "scope": {
+        "type": "object",
+        "required": ["population", "age_range", "languages", "publication_types", "time_window"],
+        "properties": {
+          "population": {"type": "string", "minLength": 2},
+          "age_range": {"type": "string", "minLength": 1},
+          "languages": {"type": "array", "minItems": 1, "items": {"type": "string", "enum": ["en", "zh"]}},
+          "publication_types": {"type": "array", "minItems": 1, "items": {"type": "string"}},
+          "time_window": {"type": "string", "minLength": 4}
+        }
+      },
+      "search_queries": {
+        "type": "array",
+        "minItems": 1,
+        "items": {
+          "type": "object",
+          "required": ["source", "query"],
+          "properties": {
+            "source": {"type": "string", "enum": ["openalex", "crossref", "eric", "europepmc", "pubmed", "semantic_scholar", "institution_site"]},
+            "query": {"type": "string", "minLength": 3},
+            "note": {"type": "string"}
+          }
+        }
+      },
+      "inclusion_hints": {"type": "array", "items": {"type": "string"}},
+      "exclusion_hints": {"type": "array", "items": {"type": "string"}},
+      "domain": {"type": "string", "enum": ["child_development", "learning_sciences", "behavior_support", "ai_children", "china_family", "cross_domain"]},
+      "status": {"type": "string", "enum": ["registered", "active", "paused", "retired"]},
+      "created_by": {"type": "string", "minLength": 2},
+      "approved_by": {"type": ["string", "null"]},
+      "retire_reason": {"type": ["string", "null"]},
+      "history": {
+        "type": "array",
+        "minItems": 1,
+        "items": {
+          "type": "object",
+          "required": ["version", "date", "summary", "author"],
+          "properties": {
+            "version": {"type": "integer"},
+            "date": {"type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$"},
+            "summary": {"type": "string", "minLength": 2},
+            "author": {"type": "string", "minLength": 2},
+            "approved_by": {"type": ["string", "null"]}
+          }
+        }
+      }
+    }
+  },
+  "cross_object_rules": [
+    "RQ-01：status == 'active' implies approved_by 为非空人工签署者",
+    "RQ-02：status == 'retired' implies retire_reason 非空",
+    "RQ-03：history 至少含一条 version == 对象 version 的记录（起草记录）",
+    "RQ-04：decision-scope 契约中 review 层记录的 rq_id 必须存在于本注册体系"
+  ]
+}

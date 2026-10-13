@@ -1,0 +1,61 @@
+{
+  "$schema_name": "childevidence-ce01r-poc-metrics-latest",
+  "$schema_version": 1,
+  "status": "AUTHORITATIVE POINTER (errata index; pending human approval via PR review; original records preserved, not rewritten)",
+  "title": "POC 评估最新指标机器可读指针（CE-01R 勘误索引的数据面）",
+  "description": "自动消费者必须以本文件为 POC 排序指标的唯一最新入口。v1 口径数字已在 docs/governance/CE-01R-ERRATA.md 标记 superseded；本文件的 values 与 results/asreview-metrics-v2-summary.csv 逐值一致（tests/test_governance_contracts.py 机器校验）。",
+  "authority_document": "docs/governance/CE-01R-ERRATA.md",
+  "subject_archive": "docs/assessment/2026-10-13-poc-tech-evaluation/",
+  "source_of_truth": {
+    "v2_summary_csv": "docs/assessment/2026-10-13-poc-tech-evaluation/results/asreview-metrics-v2-summary.csv",
+    "v2_per_run_csv": "docs/assessment/2026-10-13-poc-tech-evaluation/results/asreview-metrics-v2.csv",
+    "v2_per_run_jsonl": "docs/assessment/2026-10-13-poc-tech-evaluation/results/asreview-metrics-v2.jsonl",
+    "original_ranking_jsonl": "docs/assessment/2026-10-13-poc-tech-evaluation/results/asreview-ranking.jsonl",
+    "consistency_tests": "docs/assessment/2026-10-13-poc-tech-evaluation/results/asreview-consistency-tests.json"
+  },
+  "definitions": {
+    "wss@95": "v2 口径：0.95 - B95/N（B95=达到 0.95 召回所需审阅条数，N=393）；从原始排序逐 run 计算后跨种子取均值/标准差",
+    "wss@95_unadjusted": "v1 旧口径，仅留痕（superseded），不得用于任何新结论",
+    "missed_at_50": "v2 逐 run 口径：50% 预算处漏筛正例数；跨种子均值/标准差；v1 的跨种子并集数字（59-136）已作废",
+    "total_relevant": "正例总数 141（历史 catalog 层标签，非 Gold）"
+  },
+  "models": ["svm_max", "nb_max", "logistic_max", "tfidf_sim", "random"],
+  "n_runs": 25,
+  "n_runs_note": "25 runs = 20 次 ASReview Simulate（含官方 Random querier）+ 5 次自建 tfidf_sim",
+  "values": {
+    "svm_max": {"wss@95_mean": 0.0681, "wss@95_std": 0.018, "wss@95_unadjusted_mean": 0.1181, "missed_at_50_mean": 42.6, "missed_at_50_std": 1.8166},
+    "nb_max": {"wss@95_mean": 0.1017, "wss@95_std": 0.0106, "wss@95_unadjusted_mean": 0.1517, "missed_at_50_mean": 47.2, "missed_at_50_std": 2.3875},
+    "logistic_max": {"wss@95_mean": 0.0955, "wss@95_std": 0.0131, "wss@95_unadjusted_mean": 0.1455, "missed_at_50_mean": 45.2, "missed_at_50_std": 2.1679},
+    "tfidf_sim": {"wss@95_mean": 0.0253, "wss@95_std": 0.016, "wss@95_unadjusted_mean": 0.0753, "missed_at_50_mean": 61.0, "missed_at_50_std": 4.2426},
+    "random": {"wss@95_mean": 0.0167, "wss@95_std": 0.0337, "wss@95_unadjusted_mean": 0.0667, "missed_at_50_mean": 72.4, "missed_at_50_std": 3.7815}
+  },
+  "values_source_columns": {
+    "wss@95_mean": "wss@95_mean",
+    "wss@95_std": "wss@95_std",
+    "wss@95_unadjusted_mean": "wss@95_unadjusted_mean",
+    "missed_at_50_mean": "missed_at_50_mean",
+    "missed_at_50_std": "missed_at_50_std"
+  },
+  "supersedes": [
+    {
+      "file": "docs/assessment/2026-10-13-poc-tech-evaluation/FINAL_RECOMMENDATION.md",
+      "section": "8.3 POC-A 表格",
+      "superseded_values": {
+        "wss@95_v1": {"svm_max": 0.118, "nb_max": 0.152, "logistic_max": 0.146, "tfidf_sim": 0.075, "random": 0.067},
+        "bottom50_missed_dedup_union_v1": {"svm_max": 59, "nb_max": 68, "logistic_max": 71, "tfidf_sim": 127, "random": 136}
+      },
+      "note": "§8.3 原始文本与数字保留不改写（历史记录）；其结论效力被 §9.4 与本指针覆盖"
+    },
+    {
+      "file": "docs/assessment/2026-10-13-poc-tech-evaluation/results/asreview-metrics.csv",
+      "section": "wss@95 / bottom50 列",
+      "superseded_values": {"note": "v1 口径留痕文件，保留不删"},
+      "note": "以 asreview-metrics-v2*.csv|jsonl 为现行重算记录"
+    }
+  ],
+  "usage_warnings": [
+    "任一口径的 WSS@95 都是排序效率指标，不构成真实筛选停止性证明（SCREENING_PROTOCOL v1.1 §6.2）",
+    "历史 141 正例来自 catalog 层代理标签（label tier: proxy），非 Gold（RESEARCH_METHODOLOGY §7）",
+    "引用本指标时必须注明 v2 口径与本指针文件路径"
+  ]
+}

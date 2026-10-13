@@ -4,6 +4,12 @@
 `reports/{asreview-evaluation,pdf-parser-comparison,evidence-verification}.md` 与
 `results/` 全部原始数据。所有数字均为本机实机测量，环境与版本见各文件。
 
+> **[勘误指针 · CE-01R，2026-10-13]** 本报告 §8.3 的 WSS@95 为 v1 未调整口径、
+> "bottom-50% 漏筛"为 v1 跨种子并集口径，二者均已被 §9.4 的 v2 口径取代
+> （superseded，原始记录保留不改写）。权威更正索引：
+> [../../governance/CE-01R-ERRATA.md](../../governance/CE-01R-ERRATA.md)；
+> 机器可读最新指标：`docs/governance/contracts/CE-01R-poc-metrics-latest.json`。
+
 ---
 
 ## 8.1 Executive Summary
