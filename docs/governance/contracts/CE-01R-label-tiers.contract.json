@@ -1,0 +1,68 @@
+{
+  "$schema_name": "childevidence-ce01r-label-tiers",
+  "$schema_version": 1,
+  "status": "DRAFT v1.1 (pending human approval; not an effective rule)",
+  "title": "标签层级契约（proxy / silver / provisional / gold）",
+  "description": "RESEARCH_METHODOLOGY §7 与 ANNOTATION_GUIDE §8 的机器可校验形态。层级描述数据来源质量，与审核成熟度 L0–L4（decision-scope 契约）正交。",
+  "tiers": {
+    "proxy": {
+      "definition": "历史流水线决策的代理标签（轨道 A catalog 层）",
+      "producers": ["v0.1 record_status (141 ingested / 252 rejected)", "其他未经本规程人工审核的既有记录"],
+      "allowed_uses": ["发现排序", "审计对照", "富集抽样"],
+      "forbidden_uses": ["知识包发布门禁", "自动升级为 provisional/gold", "自动翻转结论"]
+    },
+    "silver": {
+      "definition": "规则/模型辅助生成、未经人工确认的标签",
+      "producers": ["模型（需 ai_assisted=true + 模型与版本记录）", "规则脚本"],
+      "allowed_uses": ["建议输入", "预填草稿（须人工重审）"],
+      "forbidden_uses": ["作为人工结论", "转正为 gold", "参与发布门禁"]
+    },
+    "provisional": {
+      "definition": "单人人工审核并签署、未经独立复核的标签",
+      "producers": ["一名真实人工审核者（reviewer_id + decided_at）"],
+      "allowed_uses": ["CE-02 类单人标注任务的中期结论", "复核排队"],
+      "forbidden_uses": ["单独支撑知识包发布门禁", "冒充 gold"]
+    },
+    "gold": {
+      "definition": "满足 Gold 资格流程的人工参考标签",
+      "producers": ["独立双人一致标注", "或裁决完成后由知识负责人签署"],
+      "allowed_uses": ["知识工程决策（②）", "评测参照"],
+      "forbidden_uses": ["任何模型或自动管线产生/替代"]
+    }
+  },
+  "tier_rank_for_gate": {"provisional": false, "gold": true, "note": "发布门禁只接受 gold（KNOWLEDGE_GOVERNANCE §4）"},
+  "gold_requirements": {
+    "required": [
+      "gold_flow: independent_review（第二名审核人独立盲标且与首标一致）或 adjudication（ANNOTATION_GUIDE §7 裁决完成，保留双方原始意见）",
+      "sign_off: 知识负责人签署（批准清单或审计记录：签署人、日期、版本）"
+    ],
+    "model_self_confirmation": "forbidden：模型产出（含多模型一致投票）不得产生或替代 gold（RESEARCH_METHODOLOGY §7、AGENTS #18）"
+  },
+  "fallback_rules": [
+    {"condition": "确无第二人可独立复核", "consequence": "标签封顶 provisional，标注包与导出物必须声明'单人标注，未经第二人独立验证'（ANNOTATION_GUIDE §7.5）", "gate_consequence": "不得进入知识包发布门禁"}
+  ],
+  "schema": {
+    "type": "object",
+    "required": ["record_id", "label_tier", "produced_by_kind"],
+    "properties": {
+      "record_id": {"type": "string", "minLength": 3},
+      "label_tier": {"type": "string", "enum": ["proxy", "silver", "provisional", "gold"]},
+      "produced_by_kind": {"type": "string", "enum": ["historical_pipeline", "model", "rule", "single_human", "adjudicated_human", "independent_double_human"]},
+      "ai_assisted": {"type": ["boolean", "null"]},
+      "model_id": {"type": ["string", "null"]},
+      "reviewer_ids": {"type": "array", "items": {"type": "string"}},
+      "sign_off_by": {"type": ["string", "null"]},
+      "sign_off_date": {"type": ["string", "null"], "pattern": "^\\d{4}-\\d{2}-\\d{2}$"}
+    }
+  },
+  "validation_rules": [
+    {"rule_id": "LT-01", "expr": "label_tier == 'silver' implies produced_by_kind in ['model','rule'] and ai_assisted 标记如实"},
+    {"rule_id": "LT-02", "expr": "label_tier == 'provisional' implies produced_by_kind == 'single_human' and len(reviewer_ids) >= 1"},
+    {"rule_id": "LT-03", "expr": "label_tier == 'gold' implies produced_by_kind in ['adjudicated_human','independent_double_human'] and sign_off_by != null and sign_off_date != null"},
+    {"rule_id": "LT-04", "expr": "produced_by_kind in ['model','rule'] implies label_tier in ['proxy','silver']（模型/规则不得自标 provisional/gold）"}
+  ],
+  "examples": [
+    {"record_id": "lab-example-silver-001", "label_tier": "silver", "produced_by_kind": "model", "ai_assisted": true, "model_id": "example-ranker-v1", "reviewer_ids": [], "sign_off_by": null, "sign_off_date": null},
+    {"record_id": "lab-example-gold-001", "label_tier": "gold", "produced_by_kind": "independent_double_human", "ai_assisted": false, "model_id": null, "reviewer_ids": ["human-reviewer-01", "human-reviewer-02"], "sign_off_by": "knowledge-owner", "sign_off_date": "2026-10-13"}
+  ]
+}

@@ -1,0 +1,115 @@
+{
+  "$schema_name": "childevidence-ce01r-example-research-questions",
+  "$schema_version": 1,
+  "status": "DRAFT v1.1 (pending human approval; not an effective rule)",
+  "title": "示例研究问题（3 个，CE-01R 起草，未批准）",
+  "description": "RESEARCH_METHODOLOGY §6 RQ 契约的示例数据。三个 RQ 均为 status=registered、approved_by=null：示例不构成已批准 RQ，不得据此启动轨道 B 筛选。检索式为计划口径草稿（官方 API 语法，参照 config/topics.yaml 风格），执行前须随 RQ 批准一起确认。",
+  "rq_registry_contract": "CE-01R-rq-registry.contract.json",
+  "research_questions": [
+    {
+      "rq_id": "rq-task-initiation-avoidance-primary",
+      "version": 1,
+      "question": "小学生（6–12 岁）在学业任务中的任务启动困难与任务回避行为，哪些教育心理与行为支持因素（执行功能、动机、作业环境、成人脚手架）有实证关联或干预证据？",
+      "background": "LumiThink 场景：小学生作业启动拖延与回避是家庭最高频困扰之一；需要区分动机问题、执行功能局限与环境因素，避免把群体统计结论当个体诊断。对应 README 研究范围 learning_sciences（SRL/动机/执行功能）与 behavior_support（学习焦虑与回避）交叉。",
+      "scope": {
+        "population": "小学生及其教师/家长（照养者）；理论文献放宽至任务启动/回避概念体系",
+        "age_range": "6-12",
+        "languages": ["en", "zh"],
+        "publication_types": ["empirical", "review", "meta_analysis", "practice_guide", "theoretical"],
+        "time_window": "1980-2026（经典理论不设下限，实证以检索式为准）"
+      },
+      "search_queries": [
+        {"source": "openalex", "query": "title.search: (task initiation OR task avoidance OR procrastination) AND (children OR elementary OR primary school)", "note": "草稿；执行前确认"},
+        {"source": "eric", "query": "subject: (academic procrastination OR task initiation) AND grade: elementary", "note": "草稿；执行前确认"},
+        {"source": "crossref", "query": "query.title: task avoidance motivation elementary school", "note": "草稿；执行前确认"}
+      ],
+      "inclusion_hints": [
+        "实证：任务启动/拖延/回避与执行功能、动机、自我调节学习、家庭作业行为的关联或干预研究",
+        "理论：任务价值、期待-价值理论、自我决定理论在学业回避中的应用",
+        "实践指南：作业支持与启动脚手架的循证建议"
+      ],
+      "exclusion_hints": [
+        "仅临床 ADHD 诊断治疗而与普通学业场景无迁移讨论（转介边界，写明）",
+        "职场拖延、大学生群体为主且无儿童概念迁移价值"
+      ],
+      "domain": "learning_sciences",
+      "status": "registered",
+      "created_by": "CE-01R (Codex draft, Issue #1 示例，未批准)",
+      "approved_by": null,
+      "retire_reason": null,
+      "history": [
+        {"version": 1, "date": "2026-10-13", "summary": "CE-01R 起草示例 RQ（Issue #1 修订项 3）", "author": "CE-01R agent draft", "approved_by": null}
+      ]
+    },
+    {
+      "rq_id": "rq-emotion-regulation-adult-support",
+      "version": 1,
+      "question": "儿童（0–18 岁）情绪调节发展与成人支持（共同调节、情绪辅导、脚手架）之间的关系与有效支持方式是什么？各年龄段有哪些可迁移的循证做法与边界？",
+      "background": "情绪共同调节是 LumiThink 行为支持场景的核心主题（README behavior_support：共同调节、挫折耐受、SEL）；需要按年龄分层整理发展证据与成人支持策略的适用边界，区分关系证据与因果干预证据。",
+      "scope": {
+        "population": "0–18 岁儿童青少年及其照养者/教师；理论文献放宽至情绪调节概念体系",
+        "age_range": "0-18",
+        "languages": ["en", "zh"],
+        "publication_types": ["empirical", "review", "meta_analysis", "practice_guide", "theoretical"],
+        "time_window": "1970-2026（依恋与共同调节经典文献不设下限）"
+      },
+      "search_queries": [
+        {"source": "openalex", "query": "title.search: (emotion regulation OR co-regulation OR coregulation) AND (child OR children OR adolescent)", "note": "草稿；执行前确认"},
+        {"source": "europepmc", "query": "(emotion regulation) AND (parent OR teacher) AND (co-regulation OR emotion coaching) AND (child)", "note": "草稿；执行前确认"},
+        {"source": "crossref", "query": "query.title: emotion coaching children parents", "note": "草稿；执行前确认"}
+      ],
+      "inclusion_hints": [
+        "实证：共同调节/情绪辅导与儿童情绪调节结果的关联、 longitudinal 与干预研究",
+        "理论：Gross 情绪调节框架、依恋与共同调节理论",
+        "实践指南：年龄分层的成人支持做法与转介边界"
+      ],
+      "exclusion_hints": [
+        "纯成人情绪调节且无儿童迁移讨论",
+        "仅药理/临床治疗而不涉及日常教育场景（写明转介边界后按 E2 处理）"
+      ],
+      "domain": "behavior_support",
+      "status": "registered",
+      "created_by": "CE-01R (Codex draft, Issue #1 示例，未批准)",
+      "approved_by": null,
+      "retire_reason": null,
+      "history": [
+        {"version": 1, "date": "2026-10-13", "summary": "CE-01R 起草示例 RQ（Issue #1 修订项 3）", "author": "CE-01R agent draft", "approved_by": null}
+      ]
+    },
+    {
+      "rq_id": "rq-child-ai-companion-trust-safety",
+      "version": 1,
+      "question": "儿童与对话式 AI 伙伴互动中的信任形成、依赖与信任校准、隐私与安全风险：2023–2026 有哪些实证发现、测量方法与保护性设计原则？",
+      "background": "README ai_children 领域 2023–2026 重点：拟人化与信任、依赖与信任校准、隐私与伦理；为 Agent 能力契约（KNOWLEDGE_GOVERNANCE §5 forbidden 条款）提供证据基础，防止把群体结论直接写为个体交互规则。",
+      "scope": {
+        "population": "与对话式 AI/社交机器人互动的儿童青少年及其照养者；含家长视角研究",
+        "age_range": "3-18",
+        "languages": ["en", "zh"],
+        "publication_types": ["empirical", "review", "meta_analysis", "practice_guide", "theoretical"],
+        "time_window": "2023-2026（背景理论可回溯更早）"
+      },
+      "search_queries": [
+        {"source": "openalex", "query": "title.search: (conversational agent OR chatbot OR social robot OR companion AI) AND (children OR child) AND (trust OR dependence OR safety OR privacy)", "note": "草稿；执行前确认"},
+        {"source": "semantic_scholar", "query": "child-AI companion trust calibration safety 2023-2026", "note": "草稿；执行前确认"},
+        {"source": "europepmc", "query": "(artificial intelligence) AND (children) AND (parasocial OR attachment OR trust) AND (safety OR privacy)", "note": "草稿；执行前确认"}
+      ],
+      "inclusion_hints": [
+        "实证：儿童对 AI 伙伴的信任/依赖测量、风险行为、隐私理解与保护性设计实验",
+        "综述与立场文件：儿童-AI 交互安全框架、伦理边界",
+        "实践指南：家长/产品设计侧的保护性配置与年龄适配"
+      ],
+      "exclusion_hints": [
+        "纯成人用户研究且无儿童迁移讨论",
+        "纯技术性能论文（模型架构）而与儿童场景无关联"
+      ],
+      "domain": "ai_children",
+      "status": "registered",
+      "created_by": "CE-01R (Codex draft, Issue #1 示例，未批准)",
+      "approved_by": null,
+      "retire_reason": null,
+      "history": [
+        {"version": 1, "date": "2026-10-13", "summary": "CE-01R 起草示例 RQ（Issue #1 修订项 3）", "author": "CE-01R agent draft", "approved_by": null}
+      ]
+    }
+  ]
+}

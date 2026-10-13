@@ -1,0 +1,100 @@
+{
+  "$schema_name": "childevidence-ce01r-decision-scope",
+  "$schema_version": 1,
+  "status": "DRAFT v1.1 (pending human approval; not an effective rule)",
+  "title": "Catalog 决策与 Review×RQ 决策的职责分离契约（逻辑契约，不含 SQLite 迁移）",
+  "description": "定义两层互不混用的决策对象：轨道 A 的 catalog 书目收录判定与轨道 B 的 work×research-question 证据资格判定。本文件是 RESEARCH_METHODOLOGY §5/§9 与 SCREENING_PROTOCOL §1/§5 的机器可校验形态；落库迁移另行立项（AGENTS #11）。",
+  "layers": {
+    "catalog": {
+      "decision_object": "work bibliographic collection value (track A, no RQ binding)",
+      "value_domain": ["ingested", "rejected", "pending"],
+      "requires_rq": false,
+      "historical_basis": "works.record_status: 141 ingested / 252 rejected (v0.1, 语义保持不变)",
+      "mapping_note": "历史 record_status 是轨道 A 代理标签（label tier: proxy），不得自动解释为任何 review 结论"
+    },
+    "review": {
+      "decision_object": "work evidence eligibility for one registered research question (track B)",
+      "value_domain": ["included", "excluded", "pending"],
+      "requires_rq": true,
+      "required_fields": ["rq_id", "rq_version"],
+      "mapping_note": "同一 work 在不同 rq 下可有不同结论；不存在脱离 rq 的 included/excluded"
+    }
+  },
+  "invariants": [
+    "catalog 与 review 的值域不得混用：ingested/rejected 不等于 included/excluded",
+    "review 决策记录必须携带 rq_id 与 rq_version，且该 RQ 在决策时点处于注册体系内",
+    "同一 work 在不同 rq（或同一 rq 不同版本）下允许得出不同 review 结论",
+    "历史 catalog 记录（141/252）不得被自动翻转、自动升级标签层级或自动绑定新 RQ",
+    "catalog 决策不得作为知识包发布门禁的依据；门禁只看 evidence card 状态与成熟度"
+  ],
+  "review_maturity_levels": {
+    "L0": "draft：机器或人工起草，未提交人工审",
+    "L1": "pending：已提交，等待人工审核",
+    "L2": "provisional：单人已审并签署，未独立复核（标签层级封顶 provisional）",
+    "L3": "approved：独立复核一致或经裁决后签署（标签层级 gold）",
+    "L4": "retired：复审改判的历史终态（superseded / retracted）",
+    "note": "L0–L4 是审核成熟度等级，与 RESEARCH_METHODOLOGY §3 的 L1–L9 工作流阶段编号严格区分；rejected 是终局否定结论，不属于本阶梯"
+  },
+  "evidence_card_states": ["draft", "pending", "approved", "rejected", "needs_more_evidence", "superseded", "retracted"],
+  "forbidden_state_transitions": [
+    {"from": "rejected", "to": "approved"},
+    {"from": "superseded", "to": "approved"},
+    {"from": "retracted", "to": "approved"}
+  ],
+  "forbidden_transition_rule": "终局状态（rejected/superseded/retracted）不得转回 approved；翻案须新建对象并保留审计链（KNOWLEDGE_GOVERNANCE §3）。唯一允许回退：needs_more_evidence → 补证 → pending。",
+  "schema": {
+    "type": "object",
+    "required": ["record_id", "work_ref", "layer", "decision", "reason_code", "reason_text", "reviewer_id", "decided_at", "label_tier"],
+    "properties": {
+      "record_id": {"type": "string", "minLength": 3},
+      "work_ref": {"type": "string", "minLength": 3},
+      "layer": {"type": "string", "enum": ["catalog", "review"]},
+      "decision": {"type": "string", "enum": ["ingested", "rejected", "pending", "included", "excluded"]},
+      "reason_code": {"type": "string", "pattern": "^(A0[1-3]|R0[1-6]|B0[1-3]|P01|U01)$"},
+      "reason_text": {"type": "string", "minLength": 2},
+      "reviewer_id": {"type": "string", "minLength": 2},
+      "decided_at": {"type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$"},
+      "label_tier": {"type": "string", "enum": ["proxy", "silver", "provisional", "gold"]},
+      "rq_id": {"type": ["string", "null"], "pattern": "^rq-[a-z0-9-]+$"},
+      "rq_version": {"type": ["integer", "null"]},
+      "track": {"type": "string", "enum": ["catalog", "review"]}
+    }
+  },
+  "validation_rules": [
+    {"rule_id": "DS-01", "expr": "layer == 'catalog' implies decision in ['ingested','rejected','pending'] and rq_id == null"},
+    {"rule_id": "DS-02", "expr": "layer == 'review' implies decision in ['included','excluded','pending'] and rq_id != null and rq_version != null and track == 'review'"},
+    {"rule_id": "DS-03", "expr": "label_tier in ['provisional','gold'] implies reviewer_id 指向真实人工审核者；label_tier == 'silver' implies ai_assisted 标记（本契约不落库，规则见 RESEARCH_METHODOLOGY §7）"},
+    {"rule_id": "DS-04", "expr": "历史 proxy 记录不得直接改写为 provisional/gold；人工重审须新增记录"}
+  ],
+  "examples": [
+    {
+      "record_id": "dec-example-catalog-001",
+      "work_ref": "work:fixture-classic-monograph",
+      "layer": "catalog",
+      "decision": "ingested",
+      "reason_code": "A02",
+      "reason_text": "示例：经典理论专著，馆藏收录",
+      "reviewer_id": "human-reviewer-01",
+      "decided_at": "2026-10-13",
+      "label_tier": "provisional",
+      "rq_id": null,
+      "rq_version": null,
+      "track": "catalog"
+    },
+    {
+      "record_id": "dec-example-review-001",
+      "work_ref": "work:fixture-ef-training-rct",
+      "layer": "review",
+      "decision": "included",
+      "reason_code": "A01",
+      "reason_text": "示例：满足该 RQ scope 的实证研究",
+      "reviewer_id": "human-reviewer-01",
+      "decided_at": "2026-10-13",
+      "label_tier": "provisional",
+      "rq_id": "rq-task-initiation-avoidance-primary",
+      "rq_version": 1,
+      "track": "review"
+    }
+  ],
+  "example_note": "examples 仅演示字段形态，不代表任何真实 work 或已批准决策；review 示例的 rq_id 必须能在 CE-01R-example-research-questions.json 中找到（一致性测试校验）"
+}
