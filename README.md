@@ -90,6 +90,20 @@ python scripts\smoke_real.py              # 联网端到端冒烟（少量真实
 增量更新：所有命令幂等，已核验/已下载条目自动跳过；删除 `data/research-library/cache/`
 可强制重拉 API。
 
+## 人工盲法复核（CE-02）
+
+A2 80 篇文献相关性复核的**离线人工标注流水线**（`review` 子命令），实现依据
+DRAFT v1.1 规程（ANNOTATION_GUIDE 等，未经人工批准不生效）。要点：
+
+- 独立标注库 `data/review/annotations.sqlite`，与主事实源 `library.sqlite` 零读写关联；
+- 只读导入盲法 CSV，携带历史标签/抽样层/模型排名或预填判定的输入被拒绝；
+- 人工判定追加式留痕（理由码必填，undecided 合法，单人标注封顶 provisional）；
+- 唯一 Gold 通道 = 独立复核一致或裁决完成 + 人工签署（`record-signoff`）；
+- 解盲审计的硬前置：全部标签锁定；审计只读 join 带键表，原决策不覆盖。
+
+完整流程、schema 与边界见
+[docs/review/CE-02-ANNOTATION-PLAN.md](docs/review/CE-02-ANNOTATION-PLAN.md)。
+
 ## PDF 获取与人工导入
 
 自动下载仅尝试官方 API 标注的开放获取位置（Europe PMC 全文库、OpenAlex OA、Unpaywall、
