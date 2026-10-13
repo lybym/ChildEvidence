@@ -145,6 +145,26 @@ Crossref 全文链接、ERIC、机构官网），并逐项校验：HTTP 状态 �
 3. 不绕过任何付费墙、验证码或访问控制；付费文献仅保存书目与官方入口。
 4. 预印本独立标记，不等同正式发表。
 
+## 手动 AI 科研审查 Skill
+
+显式调用 `$child-evidence-reviewer` 对指定文献/草稿执行 screen、appraise、extract、
+challenge 或 audit。Skill 位于 `.agents/skills/child-evidence-reviewer/`，
+`allow_implicit_invocation=false`；使用当前 Codex 会话并如实记录模型身份，不能自动
+切换为 Astra。它只读输入，输出独立 silver/L0 提案到
+`data/review/ai-review/<run_id>/`；不改科研库、人类标注、Gold 或发布门禁。
+
+先用本地标准库工具做许可/政策预检，再决定模型可读范围。现行摘要/PDF出站禁令
+同样约束 Docling/审核草稿衍生内容；本地读文件不代表模型离线。无 API 客户端、
+API Key 依赖、常驻服务或批量调度。使用方法、Schema/哈希说明、离线测试和风险
+见 [Skill 使用说明](.agents/skills/child-evidence-reviewer/references/usage.md)。
+工程验证与少量真实来源拒绝演示见
+[AI Skill 验证记录](docs/review/AI-SKILL-VALIDATION.md)。
+来源 Work 身份与 scope 严格绑定；模型引用须同时获准且声明实际入模型，
+包括两个 Pass 原始结果，blocked 状态也不豁免。离线回归共231项（46项Skill测试）。
+
+四份科研规程保持 DRAFT v1.1 未签署。实机发现已验证，科研模型审查尚未运行；
+本次少量真实来源演示只验证本地预检/结构与拒绝边界，不宣称 Astra 正确率。
+
 ## Evidence Extraction 路线图（v0.2+）
 
 本版（v0.1）只做采集、核验、编目与导出。后续规划（尚未实现，**不用虚构数据填充**）：

@@ -1,0 +1,6 @@
+interface:
+  display_name: "ChildEvidence AI Reviewer"
+  short_description: "手动审查指定文献与证据草稿，保留来源、局限和未决状态；仅输出 silver 提案"
+  default_prompt: "使用 $child-evidence-reviewer 审查我指定的文献；先检查来源许可和数据政策，再输出独立 AI 审查草稿。"
+policy:
+  allow_implicit_invocation: false
