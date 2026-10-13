@@ -1,0 +1,929 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:childevidence:ai-review-result:1",
+  "title": "ChildEvidence manual AI review draft v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "run_id",
+    "mode",
+    "created_at",
+    "scope",
+    "reviewer_type",
+    "requested_model_id",
+    "model_id",
+    "model_version",
+    "model_identity_status",
+    "model_review_performed",
+    "execution_kind",
+    "skill_version",
+    "protocol_version",
+    "protocol_status",
+    "input_hash",
+    "output_hash",
+    "recommendation",
+    "reason_codes",
+    "supporting_sources",
+    "findings",
+    "assessments",
+    "uncertainties",
+    "review_status",
+    "label_tier",
+    "maturity_level",
+    "human_review_status",
+    "allowed_for_agent_release",
+    "passes",
+    "summary"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "run_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{2,79}$"
+    },
+    "mode": {
+      "type": "string",
+      "enum": [
+        "screen",
+        "appraise",
+        "extract",
+        "challenge",
+        "audit"
+      ]
+    },
+    "created_at": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$"
+    },
+    "scope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "work_ids",
+        "track",
+        "rq_id",
+        "rq_version",
+        "prior_run_ids"
+      ],
+      "properties": {
+        "work_ids": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "track": {
+          "type": "string",
+          "enum": [
+            "catalog",
+            "review"
+          ]
+        },
+        "rq_id": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "minLength": 1
+        },
+        "rq_version": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 1
+        },
+        "prior_run_ids": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    "reviewer_type": {
+      "const": "ai_model"
+    },
+    "requested_model_id": {
+      "const": "gpt-6-astra"
+    },
+    "model_id": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "minLength": 1
+    },
+    "model_version": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "minLength": 1
+    },
+    "model_identity_status": {
+      "type": "string",
+      "enum": [
+        "verified",
+        "unknown",
+        "not_called"
+      ]
+    },
+    "model_review_performed": {
+      "type": "boolean"
+    },
+    "execution_kind": {
+      "type": "string",
+      "enum": [
+        "codex_session",
+        "deterministic_demo"
+      ]
+    },
+    "skill_version": {
+      "const": "0.1.0"
+    },
+    "protocol_version": {
+      "const": "DRAFT v1.1"
+    },
+    "protocol_status": {
+      "const": "draft_not_effective"
+    },
+    "input_hash": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "output_hash": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "recommendation": {
+      "type": "string",
+      "enum": [
+        "relevant",
+        "boundary",
+        "not_relevant",
+        "undecided",
+        "not_assessed"
+      ]
+    },
+    "reason_codes": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "pattern": "^(A0[1-3]|R0[1-6]|B0[1-3]|P01|U01)$"
+      }
+    },
+    "supporting_sources": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "citation_id",
+          "source_id",
+          "source_hash",
+          "doi",
+          "locator",
+          "quote",
+          "verification_status"
+        ],
+        "properties": {
+          "citation_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "source_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "source_hash": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "doi": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 1
+          },
+          "locator": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "field",
+              "paragraph_id",
+              "physical_page_no",
+              "printed_page_no",
+              "char_start",
+              "char_end"
+            ],
+            "properties": {
+              "field": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "minLength": 1
+              },
+              "paragraph_id": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "minLength": 1
+              },
+              "physical_page_no": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "minimum": 1
+              },
+              "printed_page_no": {
+                "type": [
+                  "string",
+                  "integer",
+                  "null"
+                ]
+              },
+              "char_start": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "char_end": {
+                "type": "integer",
+                "minimum": 1
+              }
+            }
+          },
+          "quote": {
+            "type": "string",
+            "minLength": 1
+          },
+          "verification_status": {
+            "type": "string",
+            "enum": [
+              "unverified",
+              "matched_local_text"
+            ]
+          }
+        }
+      }
+    },
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "field",
+          "value",
+          "citation_ids"
+        ],
+        "properties": {
+          "field": {
+            "type": "string",
+            "minLength": 1
+          },
+          "value": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 1
+          },
+          "citation_ids": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        }
+      }
+    },
+    "assessments": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "relevance",
+        "appraisal",
+        "evidence_relation",
+        "challenge_findings",
+        "audit_issues"
+      ],
+      "properties": {
+        "relevance": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "minLength": 1
+        },
+        "appraisal": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "minLength": 1
+        },
+        "evidence_relation": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "enum": [
+            "SUPPORT",
+            "CONTRADICT",
+            "NOT_ENOUGH_INFO",
+            null
+          ]
+        },
+        "challenge_findings": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "audit_issues": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    "uncertainties": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "review_status": {
+      "type": "string",
+      "enum": [
+        "ai_reviewed",
+        "unresolved",
+        "blocked"
+      ]
+    },
+    "label_tier": {
+      "const": "silver"
+    },
+    "maturity_level": {
+      "const": "L0"
+    },
+    "human_review_status": {
+      "const": "not_reviewed"
+    },
+    "allowed_for_agent_release": {
+      "const": false
+    },
+    "passes": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "enabled",
+        "isolation",
+        "a",
+        "b",
+        "differences"
+      ],
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "isolation": {
+          "type": "string",
+          "enum": [
+            "not_used",
+            "separate_contexts"
+          ]
+        },
+        "a": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "context_id",
+                "input_hash",
+                "model_id",
+                "model_version",
+                "recommendation",
+                "findings",
+                "supporting_sources",
+                "uncertainties",
+                "assessments",
+                "result_hash"
+              ],
+              "properties": {
+                "context_id": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "input_hash": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                },
+                "model_id": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "minLength": 1
+                },
+                "model_version": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "minLength": 1
+                },
+                "recommendation": {
+                  "type": "string",
+                  "enum": [
+                    "relevant",
+                    "boundary",
+                    "not_relevant",
+                    "undecided",
+                    "not_assessed"
+                  ]
+                },
+                "findings": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "field",
+                      "value",
+                      "citation_ids"
+                    ],
+                    "properties": {
+                      "field": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "value": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "minLength": 1
+                      },
+                      "citation_ids": {
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "minLength": 1
+                        }
+                      }
+                    }
+                  }
+                },
+                "supporting_sources": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "citation_id",
+                      "source_id",
+                      "source_hash",
+                      "doi",
+                      "locator",
+                      "quote",
+                      "verification_status"
+                    ],
+                    "properties": {
+                      "citation_id": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "source_id": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "source_hash": {
+                        "type": "string",
+                        "pattern": "^[0-9a-f]{64}$"
+                      },
+                      "doi": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "minLength": 1
+                      },
+                      "locator": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": [
+                          "field",
+                          "paragraph_id",
+                          "physical_page_no",
+                          "printed_page_no",
+                          "char_start",
+                          "char_end"
+                        ],
+                        "properties": {
+                          "field": {
+                            "type": [
+                              "string",
+                              "null"
+                            ],
+                            "minLength": 1
+                          },
+                          "paragraph_id": {
+                            "type": [
+                              "string",
+                              "null"
+                            ],
+                            "minLength": 1
+                          },
+                          "physical_page_no": {
+                            "type": [
+                              "integer",
+                              "null"
+                            ],
+                            "minimum": 1
+                          },
+                          "printed_page_no": {
+                            "type": [
+                              "string",
+                              "integer",
+                              "null"
+                            ]
+                          },
+                          "char_start": {
+                            "type": "integer",
+                            "minimum": 0
+                          },
+                          "char_end": {
+                            "type": "integer",
+                            "minimum": 1
+                          }
+                        }
+                      },
+                      "quote": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "verification_status": {
+                        "type": "string",
+                        "enum": [
+                          "unverified",
+                          "matched_local_text"
+                        ]
+                      }
+                    }
+                  }
+                },
+                "uncertainties": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "assessments": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "relevance",
+                    "appraisal",
+                    "evidence_relation",
+                    "challenge_findings",
+                    "audit_issues"
+                  ],
+                  "properties": {
+                    "relevance": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "minLength": 1
+                    },
+                    "appraisal": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "minLength": 1
+                    },
+                    "evidence_relation": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "enum": [
+                        "SUPPORT",
+                        "CONTRADICT",
+                        "NOT_ENOUGH_INFO",
+                        null
+                      ]
+                    },
+                    "challenge_findings": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "minLength": 1
+                      }
+                    },
+                    "audit_issues": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "minLength": 1
+                      }
+                    }
+                  }
+                },
+                "result_hash": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                }
+              }
+            }
+          ]
+        },
+        "b": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "context_id",
+                "input_hash",
+                "model_id",
+                "model_version",
+                "recommendation",
+                "findings",
+                "supporting_sources",
+                "uncertainties",
+                "assessments",
+                "result_hash"
+              ],
+              "properties": {
+                "context_id": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "input_hash": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                },
+                "model_id": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "minLength": 1
+                },
+                "model_version": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "minLength": 1
+                },
+                "recommendation": {
+                  "type": "string",
+                  "enum": [
+                    "relevant",
+                    "boundary",
+                    "not_relevant",
+                    "undecided",
+                    "not_assessed"
+                  ]
+                },
+                "findings": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "field",
+                      "value",
+                      "citation_ids"
+                    ],
+                    "properties": {
+                      "field": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "value": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "minLength": 1
+                      },
+                      "citation_ids": {
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "minLength": 1
+                        }
+                      }
+                    }
+                  }
+                },
+                "supporting_sources": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "citation_id",
+                      "source_id",
+                      "source_hash",
+                      "doi",
+                      "locator",
+                      "quote",
+                      "verification_status"
+                    ],
+                    "properties": {
+                      "citation_id": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "source_id": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "source_hash": {
+                        "type": "string",
+                        "pattern": "^[0-9a-f]{64}$"
+                      },
+                      "doi": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "minLength": 1
+                      },
+                      "locator": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": [
+                          "field",
+                          "paragraph_id",
+                          "physical_page_no",
+                          "printed_page_no",
+                          "char_start",
+                          "char_end"
+                        ],
+                        "properties": {
+                          "field": {
+                            "type": [
+                              "string",
+                              "null"
+                            ],
+                            "minLength": 1
+                          },
+                          "paragraph_id": {
+                            "type": [
+                              "string",
+                              "null"
+                            ],
+                            "minLength": 1
+                          },
+                          "physical_page_no": {
+                            "type": [
+                              "integer",
+                              "null"
+                            ],
+                            "minimum": 1
+                          },
+                          "printed_page_no": {
+                            "type": [
+                              "string",
+                              "integer",
+                              "null"
+                            ]
+                          },
+                          "char_start": {
+                            "type": "integer",
+                            "minimum": 0
+                          },
+                          "char_end": {
+                            "type": "integer",
+                            "minimum": 1
+                          }
+                        }
+                      },
+                      "quote": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "verification_status": {
+                        "type": "string",
+                        "enum": [
+                          "unverified",
+                          "matched_local_text"
+                        ]
+                      }
+                    }
+                  }
+                },
+                "uncertainties": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "assessments": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "relevance",
+                    "appraisal",
+                    "evidence_relation",
+                    "challenge_findings",
+                    "audit_issues"
+                  ],
+                  "properties": {
+                    "relevance": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "minLength": 1
+                    },
+                    "appraisal": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "minLength": 1
+                    },
+                    "evidence_relation": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "enum": [
+                        "SUPPORT",
+                        "CONTRADICT",
+                        "NOT_ENOUGH_INFO",
+                        null
+                      ]
+                    },
+                    "challenge_findings": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "minLength": 1
+                      }
+                    },
+                    "audit_issues": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "minLength": 1
+                      }
+                    }
+                  }
+                },
+                "result_hash": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                }
+              }
+            }
+          ]
+        },
+        "differences": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    "summary": {
+      "type": "string",
+      "minLength": 1
+    }
+  }
+}
