@@ -159,6 +159,8 @@ API Key 依赖、常驻服务或批量调度。使用方法、Schema/哈希说�
 见 [Skill 使用说明](.agents/skills/child-evidence-reviewer/references/usage.md)。
 工程验证与少量真实来源拒绝演示见
 [AI Skill 验证记录](docs/review/AI-SKILL-VALIDATION.md)。
+来源 Work 身份与 scope 严格绑定；模型引用须同时获准且声明实际入模型，
+包括两个 Pass 原始结果，blocked 状态也不豁免。离线回归共231项（46项Skill测试）。
 
 四份科研规程保持 DRAFT v1.1 未签署。实机发现已验证，科研模型审查尚未运行；
 本次少量真实来源演示只验证本地预检/结构与拒绝边界，不宣称 Astra 正确率。

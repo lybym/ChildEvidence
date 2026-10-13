@@ -40,4 +40,6 @@ metadata:
 
 记录真实模型身份/是否实际发生模型审查、skill/protocol 版本与文件哈希、输入 SHA-256、来源定位、未决状态及输出哈希。结构/本地文本匹配不等于原 PDF 或 DOI 的真实性验证；不能把 Docling `localization.verified=false` 自动改成 true。最终对用户说明实际读了哪些获准来源、哪些未能核验、是否实际调用 Astra。
 
+Work身份必须与选定SQLite来源的internal_id一致；blinded queue/sample、Docling document_id和文件名不自动成为Work。模型审查的所有引用与Pass原始引用必须来自预检放行且声明实际入模型的来源；blocked标签不能豁免禁传引用。本地确定性匹配不伪装模型审查。
+
 绝不写 `library.sqlite`、`data/review/annotations.sqlite`、原 PDF、Docling 产物或人工历史；绝不调用 `review judge --reviewer` 代填人工，不使用 single_human、independent_double_human、adjudicated_human，不产生 Gold/approved，不开放任何发布门禁。运行/验证指南、已知技术限制见 [usage](references/usage.md)。

@@ -307,11 +307,11 @@ class ManualSkillTests(unittest.TestCase):
             result["result_hash"] = review_tool.digest({k: v for k, v in result.items() if k != "result_hash"})
             return result
         a, b = one("context-a"), one("context-b")
-        b["assessments"]["appraisal"] = "uncertain design"
+        b["recommendation"] = "undecided"
         b["result_hash"] = review_tool.digest({k: v for k, v in b.items() if k != "result_hash"})
         self.review["passes"] = {"enabled": True, "isolation": "separate_contexts", "a": a, "b": b, "differences": []}
         self.assertTrue(self.checked())
-        self.review["passes"]["differences"] = ["appraisal disagreement"]
+        self.review["passes"]["differences"] = ["recommendation disagreement"]
         self.review["uncertainties"].append("substantive_disagreement")
         self.assertEqual([], self.checked())
         b["context_id"] = a["context_id"]
@@ -329,6 +329,101 @@ class ManualSkillTests(unittest.TestCase):
         self.review["mode"] = "screen"
         self.review["reason_codes"] = ["METHOD_LOW"]
         self.assertTrue(self.checked())
+
+    def completed_metadata_review(self):
+        db = self.metadata()
+        source = review_tool.preflight(db, "sqlite_metadata", selector="lt-test", license_id="CC-BY-4.0", access_basis="public_metadata")
+        result, prov = review_tool.make_demo("screen", [source])
+        title = review_tool.selected_metadata(db, "sqlite_metadata", "lt-test")["title"]
+        citation = self.citation(title)
+        citation.update(source_id=source["source_id"], source_hash=source["sha256"])
+        citation["locator"]["field"] = "title"
+        result.update(model_review_performed=True, execution_kind="codex_session", model_identity_status="unknown",
+                      review_status="ai_reviewed", recommendation="relevant", reason_codes=["A01"], uncertainties=[])
+        result["supporting_sources"] = [citation]
+        result["findings"] = [{"field": "title", "value": title, "citation_ids": [citation["citation_id"]]}]
+        result["assessments"]["relevance"] = "synthetic public metadata assessment"
+        prov["model_content_source_ids"] = [source["source_id"]]
+        return result, prov, source
+
+    def rehash(self, result, prov):
+        prov["input_hash"] = review_tool.input_digest(prov)
+        result["input_hash"] = prov["input_hash"]
+        result["output_hash"] = review_tool.output_digest(result)
+
+    def test_completed_scope_bound_to_selected_work_despite_valid_hashes(self):
+        result, prov, source = self.completed_metadata_review()
+        self.rehash(result, prov)
+        self.assertEqual([], review_tool.validate(result, prov))
+        for work_ids in (["lt-unrelated"], [], ["lt-test", "lt-extra"], ["lt-test", "lt-test"]):
+            result["scope"]["work_ids"] = work_ids
+            self.rehash(result, prov)
+            self.assertTrue(any("scope:" in error for error in review_tool.validate(result, prov)))
+
+    def test_blinded_queue_sample_and_document_do_not_become_work_ids(self):
+        csv = self.inputs / "blind.csv"
+        csv.write_text("queue_id,sample_id,title\na2-1,lt-sample,fixture\n", encoding="utf-8")
+        source = review_tool.preflight(csv, "blinded_metadata", selector="a2-1")
+        self.assertEqual(("blinded_item", "a2-1", "lt-sample"), (source["object_type"], source["object_id"], source["sample_id"]))
+        result, prov = review_tool.make_demo("screen", [source])
+        self.assertEqual([], result["scope"]["work_ids"])
+        self.assertEqual([], review_tool.validate(result, prov))
+        for identifier in ("a2-1", "lt-sample"):
+            result["scope"]["work_ids"] = [identifier]
+            self.rehash(result, prov)
+            self.assertTrue(review_tool.validate(result, prov))
+        path = self.inputs / "docling.json"
+        path.write_text(json.dumps(minimal_doc(document_id="actual-document")), encoding="utf-8")
+        doc = review_tool.preflight(path, "docling")
+        self.assertEqual(("document", "actual-document"), (doc["object_type"], doc["object_id"]))
+        self.assertEqual([], review_tool.make_demo("extract", [doc])[0]["scope"]["work_ids"])
+        pdf = review_tool.preflight(self.source, "pdf")
+        self.assertEqual(("file", None), (pdf["object_type"], pdf["object_id"]))
+
+    def test_completed_model_cannot_cite_blocked_source_in_mixed_inputs(self):
+        result, prov, source = self.completed_metadata_review()
+        blocked = deepcopy(self.desc)
+        prov["sources"].append(blocked)
+        citation = self.citation()
+        result["supporting_sources"] = [citation]
+        result["findings"] = [{"field": "blocked finding", "value": "synthetic only", "citation_ids": ["cite-1"]}]
+        self.rehash(result, prov)
+        self.assertTrue(any("model citation" in error for error in review_tool.validate(result, prov)))
+        result["review_status"] = "blocked"
+        self.rehash(result, prov)
+        self.assertTrue(any("model citation" in error for error in review_tool.validate(result, prov)))
+
+    def test_model_citation_must_be_declared_sent_even_if_permitted(self):
+        result, prov, source = self.completed_metadata_review()
+        prov["model_content_source_ids"] = []
+        result["review_status"] = "unresolved"
+        self.rehash(result, prov)
+        self.assertTrue(any("model citation" in error for error in review_tool.validate(result, prov)))
+
+    def test_model_mode_assessment_cannot_hide_missing_dependencies(self):
+        result, prov, source = self.completed_metadata_review()
+        result["supporting_sources"] = []
+        result["findings"] = []
+        result["review_status"] = "unresolved"
+        self.rehash(result, prov)
+        self.assertTrue(any("assessment:" in error for error in review_tool.validate(result, prov)))
+
+    def test_original_model_pass_citations_also_enforce_outbound_policy(self):
+        result, prov, source = self.completed_metadata_review()
+        blocked = deepcopy(self.desc)
+        prov["sources"].append(blocked)
+        result["review_status"] = "unresolved"
+        self.rehash(result, prov)
+        def one(context):
+            record = {"context_id": context, "input_hash": result["input_hash"], "model_id": None, "model_version": None,
+                      "recommendation": "relevant", "findings": [], "supporting_sources": [self.citation()], "uncertainties": [],
+                      "assessments": {"relevance": None, "appraisal": None, "evidence_relation": None,
+                                      "challenge_findings": [], "audit_issues": []}}
+            record["result_hash"] = review_tool.digest(record)
+            return record
+        result["passes"] = {"enabled": True, "isolation": "separate_contexts", "a": one("a"), "b": one("b"), "differences": []}
+        self.rehash(result, prov)
+        self.assertTrue(any("model citation" in error for error in review_tool.validate(result, prov)))
 
 
 if __name__ == "__main__":

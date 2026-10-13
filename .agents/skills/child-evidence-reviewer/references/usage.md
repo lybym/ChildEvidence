@@ -34,12 +34,15 @@ preflight 只打印路径、选择器、SHA、许可/政策结果，不打印标
 - `requested_model_id=gpt-6-astra` 是期望；`model_id/model_version` 是实际已核实值，否则 null。`model_identity_status=verified` 需要 provenance 中会话配置的 `model_identity_evidence`；unknown 不发明 ID；没有模型审查时 not_called、model_review_performed=false、execution_kind=deterministic_demo。
 - `reviewer_type=ai_model`、label_tier=silver、maturity_level=L0、human_review_status=not_reviewed、allowed_for_agent_release=false 为常量；schema 拒绝 Gold、人类来源和未知字段。
 - scope 分 catalog/review，review 必须明确 RQ 来源、版本和状态。screen 只用原标注建议词表/理由码；其他模式 recommendation=not_assessed。所有结果保留 DRAFT 未生效状态。
+- scope.work_ids 必须恰好对应此次 sqlite_metadata 来源的实际 internal_id，不能改成无关 Work 或漏记/重复。blinded 的 queue_id/sample_id 分别记录在来源 object_id/sample_id，均不自动等同 Work_ID；Docling 可核实的 document_id 只记录 document 身份，不能从文件名/文档ID推断 Work。只有PDF或blinded等输入时 work_ids=[]；需要与 Work 绑定时另加所选SQLite元数据来源。
 - 每项事实在 findings 中；未核实 value=null，非空值必有 citation_ids。引用含源哈希、DOI（未知 null）、字符区间、物理/印刷页和 paragraph_id/metadata field。字符从0起算，右端不包含；Docling 字符区间相对**该 paragraph 的 text**，不冒充 PDF 全文坐标。printed_page_no 未经既有人工映射为 null。
 - verification_status 只用 unverified/matched_local_text；验证器不接受 verified。后者仅证明选定本地文本片段相等，不能证明 DOI 真实、PDF 位置正确、事实推论成立。DOI 必须与指定来源一致；格式合法不证明 DOI 存在，不能据此作真实性断言。
 - uncertainties 建议采用 evidence_insufficient/original_unavailable/methodology_unknown/substantive_disagreement/important_counterevidence/child_safety/serious_bias/citation_unverified/rq_not_approved；这些强制禁止 ai_reviewed。原文缺失、严重偏倚、安全风险即便模型忘记写代码也必须在人工检查时保留未决。校验器不能检测所有隐含安全风险。
 - `passes` 禁用时 a/b=null；启用时保存两份原始结构、独立 context_id、结果哈希、共同 input_hash。两份建议/findings/assessments 不同必须保留 differences 和 substantive_disagreement；不允许抹掉任一 Pass 的 uncertainty。不同 context_id 只是一项审计声明，不能机器证明模型真的没有看过 A；隔离需要实际会话/子上下文证据。
 
 `provenance.json` 字段固定为 schema_version/run_id/sources/protocol_files/skill_files/scope/input_hash/model_identity_evidence/model_content_source_ids。sources 采用 preflight 返回的完整对象，不能手工改许可/sha；`model_content_source_ids` 明确哪些获准来源内容实际进入会话，演示为 []。协议和 Skill 文件哈希用工具的 frozen_files() 生成，不写路径中间推导值。
+
+每个来源另记录 object_type/object_id/sample_id。Work、blinded条目、文档、RQ、身份未知的file互不混用；validator重新从只读来源核对这些身份。实际模型审查的所有 supporting_sources 引文（包括两个Pass原始引文）必须既许可/政策放行又明确列入 model_content_source_ids；仅声明另一个合法元数据已发送不能替受限引文背书。非空事实要引用这些受控引文，模式评价也要有受控 supporting_sources。即便 review_status=blocked，也不得把禁传原文片段伪装成模型已生成的引用。本地确定性校验可记录片段匹配，但执行类型必须如实为 deterministic_demo，保持 blocked/unresolved。
 
 input_hash 为 sources/protocol_files/skill_files/scope 的 canonical JSON SHA-256。canonical 用 UTF-8、ensure_ascii=false、sort_keys=true、分隔符逗号/冒号、禁止 NaN。output_hash 是 review 去掉自身 output_hash 后的 canonical SHA-256；每 Pass result_hash 同样去掉自身字段。validation.json 另记录 provenance_hash。原 SQLite 整文件 SHA 和所选元数据 selection_hash 都保留；无关行变化也会触发保守失效，需要新 run。
 

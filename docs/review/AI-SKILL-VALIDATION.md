@@ -11,7 +11,7 @@
 | 本机 Codex `skills/list` | child-evidence-reviewer enabled=true、scope=repo | 真实发现；未创建模型审查会话 |
 | agents/openai.yaml | allow_implicit_invocation=false | 静态配置与官方语义；未实测普通 prompt 不激活 |
 | 官方 Skill quick_validate | Skill is valid | 使用已有开发环境 PyYAML；无运行时新依赖 |
-| 全量 unittest | 225/225 PASS（原185+新增40） | 核心回归及Skill离线确定性行为 |
+| 全量 unittest | 231/231 PASS（原185+新增46） | 核心回归及Skill离线确定性行为 |
 | smoke_offline | PASS | 既有离线流水线正常 |
 | research status | 141 ingested / 252 rejected / 35 PDF | 既有目录规模；未回填AI记录 |
 | Schema | 独立 Draft202012Validator.check_schema + 5/5真实演示验证通过 | 仅开发校验复用已有 jsonschema；Skill运行时无依赖，不等于科学事实正确性 |
@@ -23,6 +23,12 @@ JSON重复键/NaN/无效结构、A/B隔离声明与分歧保留、原始SQLite�
 来源哈希、许可不可覆盖、受限出站拒绝、同run重复写入拒绝、历史保留和版本校验。
 网络被测试桩禁止，模型调用不存在；验证器标准库不 import API SDK。
 
+独立工程复审发现并修复两项 P1：来源 Work 与 scope 可能错归属、合法元数据声明
+可能被用来掩盖受限引用。新增6项回归用合法 metadata 与受限 text 混合夹具证明：
+重新计算合法哈希仍不能错误归属 Work；queue/sample/document 不被推断为 Work；
+模型全部引用须放行且声明实际发送，blocked 状态与两 Pass 原始结果都不豁免；
+模式评价无受控引用时也不能通过。旧五项演示保留，以下列出的新run冻结修复后文件版本。
+
 ## 少量真实来源演示
 
 每个模式仅一项来源。全部输出四件产物于本地 gitignored
@@ -31,11 +37,11 @@ JSON重复键/NaN/无效结构、A/B隔离声明与分歧保留、原始SQLite�
 
 | 模式 | 实际来源（只读本地） | run_id | 状态 | 实际模型审查 |
 |---|---|---|---|---|
-| screen | 主SQLite选择 work_id=lt-1183287e1b1c 的白名单元数据 | demo-62546b40361a48049c8673e6d0ae5247 | blocked | false |
-| appraise | 该条目的既有本地PDF | demo-f42f51f7076e421196319d035340e6a3 | blocked | false |
-| extract | 既有 POC Docling 产物 lt-1183287e1b1c.docling.json | demo-ad976ace6a0441868d608b158e1fc9b0 | blocked | false |
-| challenge | 既有 POC evidence-cards-draft.jsonl（仅哈希，不读研究内容到会话） | demo-3edc2a4288ee4c649273a0c691e5c9a3 | blocked | false |
-| audit | 此次 screen 演示的 review.json（仅确定性来源校验） | demo-b7da897786b0484b8aaa8bf57a8df40a | blocked | false |
+| screen | 主SQLite选择 work_id=lt-1183287e1b1c 的白名单元数据 | demo-6324126451e04df8809610685342cade | blocked | false |
+| appraise | 该条目的既有本地PDF | demo-35c2b96396ac4f3daec13ec3102ca4db | blocked | false |
+| extract | 既有 POC Docling 产物 lt-1183287e1b1c.docling.json | demo-909c690f872f46eeb864ac0c58a01165 | blocked | false |
+| challenge | 既有 POC evidence-cards-draft.jsonl（仅哈希，不读研究内容到会话） | demo-f04f0b7c79614f658b9945efc9445e91 | blocked | false |
+| audit | 此次 screen 演示的 review.json（仅确定性来源校验） | demo-a6220f338c644d00930c1f97096769f3 | blocked | false |
 
 5/5 结构/provenance校验通过，5/5来源字节SHA与演示前一致。screen 的许可未确认；
 其他内容受现行摘要/PDF/衍生文本出站边界限制。每个结果 findings=[]、方法评价=null，

@@ -32,7 +32,8 @@ LEAK_FIELDS = ("historical_label", "stratum", "model_score", "asreview_score", "
                "model_rank", "rank", "score", "relevance_order", "gold_label", "reviewer",
                "decision", "reason_code", "reason_text")
 SOURCE_KEYS = {"source_id", "kind", "path", "selector", "sha256", "selection_hash",
-               "content_class", "license", "access_basis", "model_access_allowed", "policy_reason"}
+               "content_class", "license", "access_basis", "model_access_allowed", "policy_reason",
+               "object_type", "object_id", "sample_id"}
 PROVENANCE_KEYS = {"schema_version", "run_id", "sources", "protocol_files", "skill_files",
                    "scope", "input_hash", "model_identity_evidence", "model_content_source_ids"}
 REASONS = {"relevant": {"A01", "A02", "A03"}, "boundary": {"B01", "B02", "B03"},
@@ -180,10 +181,28 @@ def preflight(path, kind, *, selector=None, license_id="license_unknown", access
         allowed, reason = False, "blinded_csv_has_no_field_level_license_evidence"
     if kind == "rq" and (access_basis != "repository_governance" or not path.is_relative_to(PROJECT_ROOT / "docs/governance")):
         allowed, reason = False, "not_a_repository_governance_source"
+    object_type, object_id, sample_id = "file", None, None
+    if kind == "sqlite_metadata":
+        object_type, object_id = "work", metadata["internal_id"]
+    elif kind == "blinded_metadata":
+        object_type, object_id, sample_id = "blinded_item", metadata["queue_id"], metadata["sample_id"]
+    elif kind == "rq":
+        object_type, object_id = "research_question", metadata["rq_id"]
+    elif kind == "docling":
+        # Read identity locally, without exposing text or inferring a Work ID
+        # from a file name/document identifier. Unrecognized formats remain files.
+        try:
+            header = read_json(path)
+            doc_id = header.get("document_id") if isinstance(header, dict) else None
+            if isinstance(doc_id, str) and re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.:-]{0,79}", doc_id):
+                object_type, object_id = "document", doc_id
+        except (OSError, ValueError):
+            pass
     return {"source_id": "source-" + uuid4().hex[:12], "kind": kind, "path": str(path),
             "selector": selector, "sha256": file_hash(path), "selection_hash": digest(metadata) if metadata is not None else None,
             "content_class": "metadata" if kind in ("sqlite_metadata", "blinded_metadata") else "governance" if kind == "rq" else "restricted_content",
-            "license": license_id, "access_basis": access_basis, "model_access_allowed": allowed, "policy_reason": reason}
+            "license": license_id, "access_basis": access_basis, "model_access_allowed": allowed, "policy_reason": reason,
+            "object_type": object_type, "object_id": object_id, "sample_id": sample_id}
 
 
 def frozen_files():
@@ -287,7 +306,9 @@ def validate(review, provenance, *, require_current=True):
         if (any(not isinstance(source[key], str) for key in ("source_id", "kind", "path", "sha256", "content_class", "license", "access_basis", "policy_reason"))
                 or source["selector"] is not None and not isinstance(source["selector"], str)
                 or source["selection_hash"] is not None and not isinstance(source["selection_hash"], str)
-                or type(source["model_access_allowed"]) is not bool):
+                or type(source["model_access_allowed"]) is not bool
+                or source["object_type"] not in ("work", "blinded_item", "document", "file", "research_question")
+                or any(source[key] is not None and not isinstance(source[key], str) for key in ("object_id", "sample_id"))):
             return errors + ["source: incorrect types"]
         if source["source_id"] in sources:
             errors.append("source: duplicate id")
@@ -322,6 +343,9 @@ def validate(review, provenance, *, require_current=True):
     elif review["execution_kind"] != "deterministic_demo" or review["model_identity_status"] != "not_called" or review["model_id"] is not None or review["model_version"] is not None or sent:
         errors.append("identity: deterministic demo cannot claim a model call")
     scope = review["scope"]
+    known_work_ids = {source["object_id"] for source in sources.values() if source["object_type"] == "work"}
+    if len(scope["work_ids"]) != len(set(scope["work_ids"])) or set(scope["work_ids"]) != known_work_ids:
+        errors.append("scope: work_ids must match selected Work identities; queue/sample/document IDs are not Work IDs")
     if scope["track"] == "catalog" and (scope["rq_id"] is not None or scope["rq_version"] is not None):
         errors.append("scope: catalog cannot carry RQ")
     if scope["track"] == "review":
@@ -353,8 +377,11 @@ def validate(review, provenance, *, require_current=True):
             if citation["source_id"] not in sources:
                 result_errors.append("citation: missing supporting source")
             else:
+                source = sources[citation["source_id"]]
+                if review["model_review_performed"] and (not source["model_access_allowed"] or citation["source_id"] not in sent):
+                    result_errors.append("policy: model citation depends on blocked or undeclared content")
                 try:
-                    result_errors += citation_errors(citation, sources[citation["source_id"]])
+                    result_errors += citation_errors(citation, source)
                 except (OSError, ValueError, TypeError, KeyError, ImportError, sqlite3.Error):
                     result_errors.append("citation: cannot verify source")
             if citation["verification_status"] == "unverified" and "citation_unverified" not in result["uncertainties"]:
@@ -362,6 +389,10 @@ def validate(review, provenance, *, require_current=True):
         for finding in result["findings"]:
             if finding["value"] is not None and (not finding["citation_ids"] or any(cid not in citations for cid in finding["citation_ids"])):
                 result_errors.append("finding: unsupported fact must be null")
+        assessments = result["assessments"]
+        has_assessment = any(value is not None and value != [] for value in assessments.values())
+        if review["model_review_performed"] and has_assessment and not citations:
+            result_errors.append("assessment: model evaluation requires declared permitted supporting citations")
         return result_errors
 
     errors += check_result(review)
@@ -401,7 +432,7 @@ def validate(review, provenance, *, require_current=True):
 def make_demo(mode, sources, *, run_id=None):
     """A blocked/abstaining engineering example, never a scientific AI review."""
     run_id = run_id or "demo-" + uuid4().hex
-    scope = {"work_ids": [s["selector"] for s in sources if s["kind"] in ("sqlite_metadata", "blinded_metadata")],
+    scope = {"work_ids": list(dict.fromkeys(s["object_id"] for s in sources if s["object_type"] == "work")),
              "track": "catalog", "rq_id": None, "rq_version": None, "prior_run_ids": []}
     protocols, skills = frozen_files()
     prov = {"schema_version": 1, "run_id": run_id, "sources": sources, "protocol_files": protocols,
