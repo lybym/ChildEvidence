@@ -52,3 +52,24 @@
 15. 下游产品（如 LumiThink）只允许通过 ChildEvidence 发布的版本化知识包
     （catalog / evidence-cards / strategies + manifest）消费科研成果，
     不得直接读写本仓库数据库。
+
+## 科研治理（CE-01，v0.1.1 草案）
+
+> 依据文件（均为 DRAFT v1.0，待人工审核确认后生效）：
+> `RESEARCH_METHODOLOGY.md`、`SCREENING_PROTOCOL.md`、`ANNOTATION_GUIDE.md`、
+> `KNOWLEDGE_GOVERNANCE.md`。技术评估归档见
+> `docs/assessment/2026-10-13-poc-tech-evaluation/`。
+
+16. 科研决策、知识工程决策、产品决策三层**不得自动连通**；任何自动管线不得跳过
+    人工审核与知识包版本发布（KNOWLEDGE_GOVERNANCE §2）。
+17. 主动学习/排序模型（ASReview 类）只提供建议阅读顺序，**禁止自动终局拒收**；
+    经典理论、中文、负面结果与争议研究属强制人工复核层（SCREENING_PROTOCOL §6）。
+18. 模型生成的标签、摘要或证据草稿必须标记 AI 来源，且**不得生成并自我确认
+    Gold Label**；多模型一致投票不等同专家共识（RESEARCH_METHODOLOGY M6/M7）。
+19. 人工标注按 ANNOTATION_GUIDE 执行：盲法标注（不展示历史标签与模型排名）、
+    理由代码必填、分歧留痕；`undecided` 是合法状态。
+20. Evidence/Claim（科研语义层）与 PDF 解析（数据加工层）分属不同工作包，
+    独立设计、测试与发布，不得捆绑同一 PR；未经 `approved` 的证据卡不得进入
+    任何已发布知识包或 Agent 行为（KNOWLEDGE_GOVERNANCE §3–§5）。
+21. 影响科研结论的实验必须可从原始记录重算并通过一致性测试
+    （范例：POC CE-01，`docs/assessment/` 归档；RESEARCH_METHODOLOGY M9）。
