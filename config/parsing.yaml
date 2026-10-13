@@ -1,0 +1,53 @@
+# parsing.yaml — CE-03 controlled PDF parsing configuration (optional feature)
+#
+# The parsing feature is OFFLINE-FIRST and lazy: nothing here is loaded unless
+# you run `research parse ...`. Docling/pdfplumber live in an isolated venv
+# (docs/parsing/README.md); the zero-dependency acquisition CLI never imports
+# them.
+#
+# Printed page numbers are NEVER inferred here: they stay null until a human
+# supplies a corrections file (see docs/parsing/README.md).
+#
+# NOTE: this repo's mini_yaml subset does not support inline comments after
+# values; keep all comments on their own lines.
+
+parser:
+  # Docling 2.138.0 POC baseline (ADOPT, controlled integration)
+  primary: docling
+  # lightweight fallback (ADOPT for fallback/check duty only)
+  fallback: pdfplumber
+  # on primary failure run the fallback; artifact status stays "fallback"
+  fallback_enabled: true
+  # true = also run the secondary parser on success; conflicts become review
+  # tasks and are never auto-resolved
+  cross_check: false
+  # per-document hard timeout (subprocess mode)
+  timeout_sec: 600
+  # optional memory cap (MB) for the parser subprocess; null = unlimited
+  max_memory_mb: null
+  # sequential only (issue #3: limit concurrency)
+  concurrency: 1
+  # subprocess = enforced timeout/memory; inprocess = tests only
+  execution: subprocess
+
+offline:
+  # parsing never touches the network
+  mode: true
+  # Docling weights cache; null = CHILDEVIDENCE_PARSING_MODELS_DIR or
+  # <data>/parse-models
+  artifacts_dir: null
+
+output:
+  # all under the data dir (gitignored)
+  dirname: parse-output
+  # human page-map corrections live here as <document-id>.json
+  corrections_dirname: parse-corrections
+  # cross-check conflict review tasks
+  review_dirname: parse-review-queue
+
+docling:
+  # text-layer only (POC baseline); OCR is a separate later decision
+  ocr_enabled: false
+  # TableFormer ACCURATE (POC baseline)
+  table_mode: accurate
+  num_threads: 1
