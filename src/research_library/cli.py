@@ -391,6 +391,92 @@ def cmd_review(args, config: Config) -> int:
     return 2
 
 
+# ------------------------------------------------------------------ parse (CE-03)
+def cmd_parse(args, config: Config) -> int:
+    """CE-03 controlled PDF parsing (optional deps; lazy-imported here only)."""
+    import json as _json
+
+    from .parsing.config import ParsingConfig
+
+    cfg = ParsingConfig(base=config)
+    action = args.parse_action
+
+    if action == "run":
+        from .parsing import pipeline as pl
+
+        if args.manifest:
+            entries = pl.load_manifest(Path(args.manifest))
+        elif args.pdf:
+            entries = [{"document_id": args.document_id, "path": args.pdf}]
+        elif args.from_library:
+            conn = db.connect(config.db_path)
+            rows = conn.execute(
+                "SELECT internal_id, local_pdf_path, sha256 FROM works"
+                " WHERE access_status='pdf_downloaded'"
+            ).fetchall()
+            conn.close()
+            entries = [
+                {"document_id": r["internal_id"], "path": r["local_pdf_path"],
+                 "sha256": r["sha256"]}
+                for r in rows if r["local_pdf_path"]
+            ]
+        else:
+            print("ERROR: provide --pdf <file>, --manifest <json> or --from-library")
+            return 2
+        summary = pl.run_batch(
+            entries, cfg, force=args.force, limit=args.limit,
+            input_root=args.input_root,
+        )
+        print(_json.dumps({k: v for k, v in summary.items() if k != "outcomes"},
+                          ensure_ascii=False, indent=1))
+        for o in summary["outcomes"]:
+            reasons = o.get("failure_reasons") or []
+            if o.get("action") in ("failed", "integrity_failed") or reasons:
+                print(f"[{o.get('document_id') or o.get('pdf_path')}] {o.get('action')}"
+                      f" status={o.get('status')}"
+                      + ("; ".join(f"{r.get('code')}: {r.get('message','')[:120]}"
+                                   for r in reasons) or ""))
+        return 0 if summary["failed"] == 0 and summary["integrity_failed"] == 0 else 1
+
+    if action == "report":
+        from .parsing import pipeline as pl
+        from .parsing import report as rpt
+
+        manifest_entries = pl.load_manifest(Path(args.manifest)) if args.manifest else None
+        out = rpt.build_report(cfg.output_root, manifest_entries=manifest_entries)
+        if args.format == "md":
+            text = rpt.render_markdown(out)
+        else:
+            text = _json.dumps(out, ensure_ascii=False, indent=1)
+        if args.out:
+            Path(args.out).write_text(text, encoding="utf-8")
+            print(f"wrote {args.out}")
+        else:
+            print(text)
+        return 0
+
+    if action == "models":
+        from .parsing import models as pmodels
+
+        target = Path(args.artifacts_dir) if args.artifacts_dir else (
+            cfg.models_dir or (config.data_dir / "parse-models"))
+        if args.verify_only:
+            ok, problems = pmodels.verify_manifest(target)
+            print(_json.dumps({"verified": ok, "problems": problems},
+                              ensure_ascii=False, indent=1))
+            return 0 if ok else 1
+        if args.offline:
+            print("ERROR: --offline refuses the network; model download is the one "
+                  "explicit authorized operation (run without --offline)")
+            return 2
+        res = pmodels.download_models(target)
+        print(_json.dumps(res, ensure_ascii=False, indent=1))
+        return 0
+
+    print(f"ERROR: unknown parse action {action!r}")
+    return 2
+
+
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(prog="research", description="ChildEvidence Research Library v0.1")
     parser.add_argument("--data-dir", default=None, help="data directory (default: <project>/data/research-library, override with CHILDEVIDENCE_DATA_DIR)")
@@ -462,6 +548,27 @@ def main(argv=None) -> int:
     p.add_argument("--outdir", default=None, help="export/audit output directory")
     p.add_argument("--extrapolation-note", default=None, help="audit: human-provided weighting/CI note; omit to keep no-extrapolation")
 
+    # CE-03 controlled PDF parsing (optional dependencies; lazy-imported)
+    p = sub.add_parser("parse", help="CE-03 PDF parsing pipeline (run/report/models)")
+    p.add_argument("parse_action", choices=("run", "report", "models"))
+    p.add_argument("--pdf", default=None, help="run: single PDF file")
+    p.add_argument("--document-id", default=None, help="run: document id (default: file stem)")
+    p.add_argument("--manifest", default=None,
+                   help="run/report: PDF sample manifest JSON (documents[] with sha256)")
+    p.add_argument("--from-library", action="store_true",
+                   help="run: parse works with downloaded PDFs from library.sqlite (read-only)")
+    p.add_argument("--limit", type=int, default=None)
+    p.add_argument("--force", action="store_true", help="re-parse even if a valid artifact exists")
+    p.add_argument("--input-root", default=None,
+                   help="remap manifest copy_path file names onto this directory")
+    p.add_argument("--format", default="json", choices=("json", "md"), help="report format")
+    p.add_argument("--out", default=None, help="report output file (default: stdout)")
+    p.add_argument("--artifacts-dir", default=None, help="models: weights cache directory")
+    p.add_argument("--verify-only", action="store_true",
+                   help="models: verify cached weights against models-manifest.json (offline)")
+    p.add_argument("--offline", action="store_true",
+                   help="models: guard flag; the download itself is the only networked op")
+
     args = parser.parse_args(argv)
     config = Config(data_dir=Path(args.data_dir) if args.data_dir else None)
     config.ensure_dirs()
@@ -469,6 +576,7 @@ def main(argv=None) -> int:
         "discover": cmd_discover, "verify": cmd_verify, "acquire": cmd_acquire,
         "verify-pdfs": cmd_verify_pdfs, "export": cmd_export, "import-pdf": cmd_import_pdf,
         "status": cmd_status, "docs": cmd_docs, "review": cmd_review,
+        "parse": cmd_parse,
     }
     return handlers[args.command](args, config)
 

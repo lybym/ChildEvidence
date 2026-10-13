@@ -12,6 +12,11 @@ license = { text = "MIT" }
 authors = [{ name = "LumiThink / ChildEvidence maintainers" }]
 dependencies = []  # standard library only by design
 
+[project.optional-dependencies]
+# CE-03 controlled PDF parsing (optional, isolated venv; see docs/parsing/README.md).
+# docling pinned to the POC-validated baseline; never imported by the core CLI.
+parsing = ["docling==2.138.0", "pdfplumber>=0.11,<0.12"]
+
 [project.scripts]
 research = "research_library.cli:main"
 
