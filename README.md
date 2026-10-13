@@ -104,6 +104,32 @@ DRAFT v1.1 规程（ANNOTATION_GUIDE 等，未经人工批准不生效）。要�
 完整流程、schema 与边界见
 [docs/review/CE-02-ANNOTATION-PLAN.md](docs/review/CE-02-ANNOTATION-PLAN.md)。
 
+## 受控 PDF 解析（CE-03，可选依赖）
+
+`parse` 子命令提供 **Docling 优先 + pdfplumber 回退** 的受控解析流水线
+（数据加工层；不生成 Claim/Evidence 语义，不触碰知识包与 Agent 策略）。
+**默认 CLI 保持零第三方依赖**——只有显式运行 `parse` 时才在隔离 venv 内懒加载
+docling/pdfplumber（引入理由：POC-B 实测 Docling 2.138.0 为唯一同时满足
+结构化+页码/坐标溯源+中英可靠的解析器；见
+[docs/assessment/2026-10-13-poc-tech-evaluation/FINAL_RECOMMENDATION.md](docs/assessment/2026-10-13-poc-tech-evaluation/FINAL_RECOMMENDATION.md) §9）。
+
+```powershell
+# 一次性：隔离 venv 安装可选依赖（不影响零依赖采集环境）
+python -m venv C:\path\to\ce03-venv
+C:\path\to\ce03-venv\Scripts\python.exe -m pip install ".[parsing]"
+# 一次性：下载 Docling 运行权重到本地缓存（唯一联网步骤；需显式授权执行）
+C:\path\to\ce03-venv\Scripts\python.exe -m research_library parse models --artifacts-dir C:\path\to\model-cache
+# 日常：离线解析（产物版本化、幂等、断点续跑）
+C:\path\to\ce03-venv\Scripts\python.exe -m research_library parse run --manifest <manifest.json>
+C:\path\to\ce03-venv\Scripts\python.exe -m research_library parse report --format md --out report.md
+```
+
+要点：物理页/印刷页严格分离（印刷页只由人工校正文件写入，永不推断）；
+bbox 只代表"坐标存在"而非"定位正确"（存在率与准确率分开报告，准确率留给
+CE-04 人工 Gold）；失败回退显式标记 `fallback`；双解析冲突生成复核任务不自动裁决；
+解析产物写入 `data/research-library/parse-output/`（gitignored），
+`library.sqlite` 零写入。完整说明与边界见 [docs/parsing/README.md](docs/parsing/README.md)。
+
 ## PDF 获取与人工导入
 
 自动下载仅尝试官方 API 标注的开放获取位置（Europe PMC 全文库、OpenAlex OA、Unpaywall、
