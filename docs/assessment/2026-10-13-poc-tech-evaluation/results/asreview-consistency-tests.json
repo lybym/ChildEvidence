@@ -1,0 +1,162 @@
+{
+ "n_runs_total": 25,
+ "runs_via_asreview_simulate": 20,
+ "runs_selfbuilt_tfidf": 5,
+ "random_provenance": "ASReview official Random querier inside Simulate loop",
+ "wss95_definition_v2": "0.95 - burden95/N",
+ "all_consistency_tests_pass": true,
+ "random_missed_at_50_theory": 70.32,
+ "random_missed_at_50_empirical_mean": 72.4,
+ "runs": [
+  {
+   "model": "tfidf_sim",
+   "seed": 11,
+   "n_errors": 0,
+   "errors": []
+  },
+  {
+   "model": "random",
+   "seed": 11,
+   "n_errors": 0,
+   "errors": []
+  },
+  {
+   "model": "nb_max",
+   "seed": 11,
+   "n_errors": 0,
+   "errors": []
+  },
+  {
+   "model": "svm_max",
+   "seed": 11,
+   "n_errors": 0,
+   "errors": []
+  },
+  {
+   "model": "logistic_max",
+   "seed": 11,
+   "n_errors": 0,
+   "errors": []
+  },
+  {
+   "model": "tfidf_sim",
+   "seed": 23,
+   "n_errors": 0,
+   "errors": []
+  },
+  {
+   "model": "random",
+   "seed": 23,
+   "n_errors": 0,
+   "errors": []
+  },
+  {
+   "model": "nb_max",
+   "seed": 23,
+   "n_errors": 0,
+   "errors": []
+  },
+  {
+   "model": "svm_max",
+   "seed": 23,
+   "n_errors": 0,
+   "errors": []
+  },
+  {
+   "model": "logistic_max",
+   "seed": 23,
+   "n_errors": 0,
+   "errors": []
+  },
+  {
+   "model": "tfidf_sim",
+   "seed": 37,
+   "n_errors": 0,
+   "errors": []
+  },
+  {
+   "model": "random",
+   "seed": 37,
+   "n_errors": 0,
+   "errors": []
+  },
+  {
+   "model": "nb_max",
+   "seed": 37,
+   "n_errors": 0,
+   "errors": []
+  },
+  {
+   "model": "svm_max",
+   "seed": 37,
+   "n_errors": 0,
+   "errors": []
+  },
+  {
+   "model": "logistic_max",
+   "seed": 37,
+   "n_errors": 0,
+   "errors": []
+  },
+  {
+   "model": "tfidf_sim",
+   "seed": 51,
+   "n_errors": 0,
+   "errors": []
+  },
+  {
+   "model": "random",
+   "seed": 51,
+   "n_errors": 0,
+   "errors": []
+  },
+  {
+   "model": "nb_max",
+   "seed": 51,
+   "n_errors": 0,
+   "errors": []
+  },
+  {
+   "model": "svm_max",
+   "seed": 51,
+   "n_errors": 0,
+   "errors": []
+  },
+  {
+   "model": "logistic_max",
+   "seed": 51,
+   "n_errors": 0,
+   "errors": []
+  },
+  {
+   "model": "tfidf_sim",
+   "seed": 67,
+   "n_errors": 0,
+   "errors": []
+  },
+  {
+   "model": "random",
+   "seed": 67,
+   "n_errors": 0,
+   "errors": []
+  },
+  {
+   "model": "nb_max",
+   "seed": 67,
+   "n_errors": 0,
+   "errors": []
+  },
+  {
+   "model": "svm_max",
+   "seed": 67,
+   "n_errors": 0,
+   "errors": []
+  },
+  {
+   "model": "logistic_max",
+   "seed": 67,
+   "n_errors": 0,
+   "errors": []
+  }
+ ]
+}

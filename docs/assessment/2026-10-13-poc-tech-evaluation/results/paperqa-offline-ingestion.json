@@ -1,0 +1,67 @@
+{
+ "parser": "paper-qa(pypdf reader)",
+ "embedding": "st-multi-qa-MiniLM-L6-cos-v1",
+ "docs": [
+  {
+   "document_id": "lt-580de6652a2c",
+   "runtime_s": 15.9,
+   "status": "ok",
+   "docname": "lt-580de6652a2c"
+  },
+  {
+   "document_id": "lt-37ad5059c0f3",
+   "runtime_s": 10.21,
+   "status": "ok",
+   "docname": "lt-37ad5059c0f3"
+  },
+  {
+   "document_id": "lt-ad6c6f6b125c",
+   "runtime_s": 9.28,
+   "status": "ok",
+   "docname": "lt-ad6c6f6b125c"
+  },
+  {
+   "document_id": "lt-66fdcac87579",
+   "runtime_s": 11.81,
+   "status": "ok",
+   "docname": "lt-66fdcac87579"
+  },
+  {
+   "document_id": "lt-ff6789b6c543",
+   "runtime_s": 8.8,
+   "status": "ok",
+   "docname": "lt-ff6789b6c543"
+  },
+  {
+   "document_id": "lt-dab4d327e195",
+   "runtime_s": 4.48,
+   "status": "ok",
+   "docname": "lt-dab4d327e195"
+  },
+  {
+   "document_id": "lt-f16c456c15ea",
+   "runtime_s": 4.65,
+   "status": "ok",
+   "docname": "lt-f16c456c15ea"
+  },
+  {
+   "document_id": "lt-1183287e1b1c",
+   "runtime_s": 4.97,
+   "status": "ok",
+   "docname": "lt-1183287e1b1c"
+  },
+  {
+   "document_id": "lt-2f7e083d392e",
+   "runtime_s": 4.0,
+   "status": "ok",
+   "docname": "lt-2f7e083d392e"
+  },
+  {
+   "document_id": "lt-3a3cfbaa18fd",
+   "runtime_s": 5.87,
+   "status": "ok",
+   "docname": "lt-3a3cfbaa18fd"
+  }
+ ],
+ "n_texts_chunks": 128
+}

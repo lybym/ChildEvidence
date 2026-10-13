@@ -1,0 +1,106 @@
+{
+ "seed": 20261014,
+ "version": "v1-2026-10-13",
+ "documents": [
+  {
+   "document_id": "lt-580de6652a2c",
+   "category": "en_regular",
+   "language": "en",
+   "pages": 26,
+   "pdf_version": "published_version",
+   "sha256": "aca275c33eb858828ff5f57efb172ce9227a8f0e23afa731e522995734d32f34",
+   "source_path": "C:\\CODE\\ChildEvidence\\data\\research-library\\pdf\\lt-580de6652a2c.pdf",
+   "copy_path": "C:\\CODE\\ChildEvidence-POC\\datasets\\pdf-sample\\lt-580de6652a2c.pdf"
+  },
+  {
+   "document_id": "lt-37ad5059c0f3",
+   "category": "en_regular",
+   "language": "en",
+   "pages": 26,
+   "pdf_version": "published_version",
+   "sha256": "fbb1e15333f5bd987e7dd65ef777061c6c8863a028fa599a18795badff0a6fa5",
+   "source_path": "C:\\CODE\\ChildEvidence\\data\\research-library\\pdf\\lt-37ad5059c0f3.pdf",
+   "copy_path": "C:\\CODE\\ChildEvidence-POC\\datasets\\pdf-sample\\lt-37ad5059c0f3.pdf"
+  },
+  {
+   "document_id": "lt-ad6c6f6b125c",
+   "category": "en_regular",
+   "language": "en",
+   "pages": 23,
+   "pdf_version": "published_version",
+   "sha256": "e089f7e7477925e01f2797b1e1fe02405e6403a6c57adfa1eca99bc101e68a6e",
+   "source_path": "C:\\CODE\\ChildEvidence\\data\\research-library\\pdf\\lt-ad6c6f6b125c.pdf",
+   "copy_path": "C:\\CODE\\ChildEvidence-POC\\datasets\\pdf-sample\\lt-ad6c6f6b125c.pdf"
+  },
+  {
+   "document_id": "lt-66fdcac87579",
+   "category": "en_regular",
+   "language": "en",
+   "pages": 18,
+   "pdf_version": "submitted_version",
+   "sha256": "804e8b3dbc8fc9b6bf41a03734abca38d53221368cc2fd1b72bdc36c387dd9e9",
+   "source_path": "C:\\CODE\\ChildEvidence\\data\\research-library\\pdf\\lt-66fdcac87579.pdf",
+   "copy_path": "C:\\CODE\\ChildEvidence-POC\\datasets\\pdf-sample\\lt-66fdcac87579.pdf"
+  },
+  {
+   "document_id": "lt-ff6789b6c543",
+   "category": "zh",
+   "language": "zh",
+   "pages": 13,
+   "pdf_version": "published_version",
+   "sha256": "ce082b98a83f330c8e9f1d3da962021f780a7440f2e5a9fad891e875cccce8ec",
+   "source_path": "C:\\CODE\\ChildEvidence\\data\\research-library\\pdf\\lt-ff6789b6c543.pdf",
+   "copy_path": "C:\\CODE\\ChildEvidence-POC\\datasets\\pdf-sample\\lt-ff6789b6c543.pdf"
+  },
+  {
+   "document_id": "lt-dab4d327e195",
+   "category": "zh",
+   "language": "zh",
+   "pages": 14,
+   "pdf_version": "published_version",
+   "sha256": "e0080d1ee67dbaa6a0b163dcb6ed23ba87b969b51779d856cf8146a6cf91c34a",
+   "source_path": "C:\\CODE\\ChildEvidence\\data\\research-library\\pdf\\lt-dab4d327e195.pdf",
+   "copy_path": "C:\\CODE\\ChildEvidence-POC\\datasets\\pdf-sample\\lt-dab4d327e195.pdf"
+  },
+  {
+   "document_id": "lt-f16c456c15ea",
+   "category": "zh",
+   "language": "zh",
+   "pages": 26,
+   "pdf_version": "published_version",
+   "sha256": "875b76006d0e407ccd0bb0043d609ae7905ce096e52562f1ceaa4efc4ac4e374",
+   "source_path": "C:\\CODE\\ChildEvidence\\data\\research-library\\pdf\\lt-f16c456c15ea.pdf",
+   "copy_path": "C:\\CODE\\ChildEvidence-POC\\datasets\\pdf-sample\\lt-f16c456c15ea.pdf"
+  },
+  {
+   "document_id": "lt-1183287e1b1c",
+   "category": "review_meta",
+   "language": "zh",
+   "pages": 19,
+   "pdf_version": "published_version",
+   "sha256": "7e68df2f632d1132bfce5e56f1a28b805872013cb4d7bffae31300494ce4407a",
+   "source_path": "C:\\CODE\\ChildEvidence\\data\\research-library\\pdf\\lt-1183287e1b1c.pdf",
+   "copy_path": "C:\\CODE\\ChildEvidence-POC\\datasets\\pdf-sample\\lt-1183287e1b1c.pdf"
+  },
+  {
+   "document_id": "lt-2f7e083d392e",
+   "category": "short",
+   "language": "en",
+   "pages": 2,
+   "pdf_version": "published_version",
+   "sha256": "f46b53fc42c343f567e70111656e1521fad728ba9bf46e84e07ded17846d7fbd",
+   "source_path": "C:\\CODE\\ChildEvidence\\data\\research-library\\pdf\\lt-2f7e083d392e.pdf",
+   "copy_path": "C:\\CODE\\ChildEvidence-POC\\datasets\\pdf-sample\\lt-2f7e083d392e.pdf"
+  },
+  {
+   "document_id": "lt-3a3cfbaa18fd",
+   "category": "long_report",
+   "language": "en",
+   "pages": 54,
+   "pdf_version": "submitted_version",
+   "sha256": "390ee252b0c671bcd13d9461c5e101c95e6a69a22976ed2e0b43ea6941952825",
+   "source_path": "C:\\CODE\\ChildEvidence\\data\\research-library\\pdf\\lt-3a3cfbaa18fd.pdf",
+   "copy_path": "C:\\CODE\\ChildEvidence-POC\\datasets\\pdf-sample\\lt-3a3cfbaa18fd.pdf"
+  }
+ ]
+}

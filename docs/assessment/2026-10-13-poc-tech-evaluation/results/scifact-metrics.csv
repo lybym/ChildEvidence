@@ -1,0 +1,17 @@
+dataset,"scifact_dev(labeled, official S3 latest)"
+n_claims_dev,300
+n_train_pairs,2427
+retrieval_gold_in_top3,"143/300"
+rationale_precision,0.0552
+rationale_recall,0.4071
+rationale_f1,0.0972
+label_accuracy,0.8311
+label_macro_f1,0.4345
+label_macro_f1_without_nei,0.182
+f1_per_class(C/N/S),[0.1053, 0.9394, 0.2588]
+precision_per_class,[0.102, 0.9232, 0.3143]
+recall_per_class,[0.1087, 0.9562, 0.22]
+confusion_matrix_rows_true_[C,N,S]_cols_pred_[C,N,S],[[5, 14, 27], [12, 721, 21], [32, 46, 22]]
+seed,20261013
+system,"tfidf-rerank top3 + sentence-tfidf top3 + logistic (train-split only)"
+claim_document_label_accuracy,748/900=0.8311 (evaluation instances are claim-document pairs from 300 claims x top-3 retrieval; NOT end-to-end claim-level accuracy);nei_instance_share,754/900=0.838 of label instances are NOT_ENOUGH_INFO;metric_naming_note,rename label_accuracy -> claim_document_label_accuracy per external review 2026-10-13

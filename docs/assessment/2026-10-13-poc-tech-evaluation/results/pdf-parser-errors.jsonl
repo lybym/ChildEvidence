@@ -1,0 +1,2 @@
+{"parser": "docling", "document_id": "lt-ff6789b6c543", "error": "pypdf reference invalid (CID garbled; visually confirmed digital text PDF) - coverage/CER not interpretable", "reference_valid": false}
+{"parser": "pdfplumber", "document_id": "lt-ff6789b6c543", "error": "pypdf reference invalid (CID garbled; visually confirmed digital text PDF) - coverage/CER not interpretable", "reference_valid": false}

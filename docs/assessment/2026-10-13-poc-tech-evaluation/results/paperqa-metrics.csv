@@ -1,0 +1,10 @@
+system,paperqa2026.8.12 offline (pypdf+MiniLM local, no LLM)
+n_questions_ok,12/12
+doc_hit@5,3/12
+evidence_phrase_hit@5,0/15
+gold_page_in_chunkrange@5,2/12
+known_failure,pypdf default reader garbles zh CID fonts; embedding model English-centric; aquery/agents BLOCKED (no LLM keys)
+system2,tfidf-char13-top5 (self-built)
+baseline_doc_hit@5,8/12
+baseline_evidence_hit@5,1/15
+baseline_gold_page_retrieved@5,4/12
