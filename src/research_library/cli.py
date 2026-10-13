@@ -7,7 +7,7 @@ import json
 import sys
 from pathlib import Path
 
-from . import acquisition, db, discover, exporters, reports, verify
+from . import acquisition, annotation, db, discover, exporters, reports, verify
 from .config import Config
 from .http_client import HttpClient
 from .normalize import norm_doi, norm_title, title_similarity
@@ -264,6 +264,133 @@ def cmd_docs(args, config: Config) -> int:
     return 0
 
 
+# ------------------------------------------------------------------ review (CE-02)
+def _review_store(args, config: Config) -> Path:
+    return Path(args.store) if args.store else annotation.default_store_path(config.data_dir)
+
+
+def cmd_review(args, config: Config) -> int:
+    """Blind human review pipeline (CE-02): independent store, no main-DB writes."""
+    import json as _json
+
+    store = _review_store(args, config)
+    action = args.review_action
+    queue_id = args.queue_id or args.item_ref
+
+    def _die(err: Exception) -> int:
+        print(f"ERROR: {err}")
+        return 2
+
+    if action == "import":
+        try:
+            res = annotation.import_blinded_csv(store, Path(args.csv))
+        except Exception as e:  # noqa: BLE001 - CLI boundary
+            return _die(e)
+        print(_json.dumps(res, ensure_ascii=False))
+        return 0
+
+    if action == "next":
+        item = annotation.next_item(store)
+        if item is None:
+            print("no pending items")
+            return 0
+        print(_json.dumps(item, ensure_ascii=False, indent=1))
+        return 0
+
+    if action == "judge":
+        try:
+            res = annotation.judge(
+                store, queue_id, reviewer_id=args.reviewer,
+                decision=args.decision, reason_code=args.reason_code,
+                reason_text=args.reason_text, confidence=args.confidence,
+                notes=args.notes, amend=args.amend,
+            )
+        except Exception as e:  # noqa: BLE001
+            return _die(e)
+        print(_json.dumps(res, ensure_ascii=False))
+        return 0
+
+    if action == "pause":
+        res = annotation.pause(store, note=args.note)
+        print(_json.dumps(res, ensure_ascii=False))
+        return 0
+
+    if action == "resume":
+        print(_json.dumps(annotation.resume(store), ensure_ascii=False))
+        return 0
+
+    if action == "progress":
+        print(_json.dumps(annotation.progress(store), ensure_ascii=False, indent=1))
+        return 0
+
+    if action == "pending":
+        rows = annotation.pending_queue(store)
+        print(_json.dumps(rows, ensure_ascii=False, indent=1))
+        return 0
+
+    if action == "compare":
+        print(_json.dumps(annotation.compare_reviewers(store), ensure_ascii=False, indent=1))
+        return 0
+
+    if action == "disagreements":
+        print(_json.dumps(annotation.list_disagreements(store), ensure_ascii=False, indent=1))
+        return 0
+
+    if action == "lock":
+        try:
+            res = annotation.lock_queue(store, confirmed_by=args.confirmed_by)
+        except Exception as e:  # noqa: BLE001
+            return _die(e)
+        print(_json.dumps(res, ensure_ascii=False))
+        return 0
+
+    if action == "record-adjudication":
+        try:
+            res = annotation.record_adjudication(
+                store, queue_id, adjudicator_id=args.adjudicator,
+                decision=args.decision, reason_code=args.reason_code,
+                reason_text=args.reason_text, notes=args.notes,
+            )
+        except Exception as e:  # noqa: BLE001
+            return _die(e)
+        print(_json.dumps(res, ensure_ascii=False))
+        return 0
+
+    if action == "record-signoff":
+        try:
+            res = annotation.record_signoff(
+                store, queue_id, sign_off_by=args.sign_off_by,
+                sign_off_date=args.sign_off_date, evidence_file=args.evidence_file,
+            )
+        except Exception as e:  # noqa: BLE001
+            return _die(e)
+        print(_json.dumps(res, ensure_ascii=False))
+        return 0
+
+    if action == "audit":
+        outdir = Path(args.outdir) if args.outdir else store.parent / "audit"
+        try:
+            if not args.keyed_csv:
+                raise annotation.ReviewError("audit requires --keyed-csv (unblinding is explicit)")
+            res = annotation.run_audit(
+                store, Path(args.keyed_csv), outdir,
+                extrapolation_note=args.extrapolation_note,
+            )
+        except Exception as e:  # noqa: BLE001
+            return _die(e)
+        print(_json.dumps(res, ensure_ascii=False, indent=1))
+        return 0
+
+    if action == "export":
+        outdir = Path(args.outdir) if args.outdir else store.parent / "export"
+        res = annotation.export_annotations(store, outdir)
+        print(_json.dumps(res, ensure_ascii=False, indent=1))
+        return 0
+
+    print(f"ERROR: unknown review action {action!r}")
+    return 2
+
+
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(prog="research", description="ChildEvidence Research Library v0.1")
     parser.add_argument("--data-dir", default=None, help="data directory (default: <project>/data/research-library, override with CHILDEVIDENCE_DATA_DIR)")
@@ -305,13 +432,43 @@ def main(argv=None) -> int:
     sub.add_parser("status", help="show library status")
     sub.add_parser("docs", help="regenerate docs/research/*.md deliverables")
 
+    # CE-02 blind human review (independent store; never touches library.sqlite)
+    p = sub.add_parser("review", help="CE-02 blind human review pipeline (import/judge/export/audit)")
+    p.add_argument("--store", default=None, help="annotation store path (default: <data-dir>/review/annotations.sqlite)")
+    review_actions = (
+        "import", "next", "judge", "pause", "resume", "progress", "pending",
+        "compare", "disagreements", "lock", "record-adjudication",
+        "record-signoff", "audit", "export",
+    )
+    p.add_argument("review_action", choices=review_actions, help="review pipeline action")
+    p.add_argument("--csv", default=None, help="import: blinded review-queue CSV (read-only)")
+    p.add_argument("item_ref", nargs="?", default=None,
+                   help="queue_id for judge / record-adjudication / record-signoff "
+                        "(same as --queue-id)")
+    p.add_argument("--queue-id", default=None, help="judge/adjudicate/signoff: item id")
+    p.add_argument("--reviewer", default=None, help="human reviewer id (mandatory for judge)")
+    p.add_argument("--decision", default=None, choices=annotation.DECISIONS)
+    p.add_argument("--reason-code", default=None, help="A01-A03/B01-B03/R01-R06/P01/U01")
+    p.add_argument("--reason-text", default=None, help="one-sentence mandatory justification")
+    p.add_argument("--confidence", default="medium", choices=annotation.CONFIDENCE_LEVELS)
+    p.add_argument("--notes", default=None)
+    p.add_argument("--amend", action="store_true", help="append a correction (originals kept)")
+    p.add_argument("--adjudicator", default=None, help="third-party human adjudicator id")
+    p.add_argument("--confirmed-by", default=None, help="lock: human confirming the lock")
+    p.add_argument("--sign-off-by", default=None, help="knowledge-owner id (human sign-off)")
+    p.add_argument("--sign-off-date", default=None, help="sign-off date YYYY-MM-DD")
+    p.add_argument("--evidence-file", default=None, help="human sign-off record file (must exist)")
+    p.add_argument("--keyed-csv", default=None, help="audit: keyed queue CSV (unblinding, post-lock only)")
+    p.add_argument("--outdir", default=None, help="export/audit output directory")
+    p.add_argument("--extrapolation-note", default=None, help="audit: human-provided weighting/CI note; omit to keep no-extrapolation")
+
     args = parser.parse_args(argv)
     config = Config(data_dir=Path(args.data_dir) if args.data_dir else None)
     config.ensure_dirs()
     handlers = {
         "discover": cmd_discover, "verify": cmd_verify, "acquire": cmd_acquire,
         "verify-pdfs": cmd_verify_pdfs, "export": cmd_export, "import-pdf": cmd_import_pdf,
-        "status": cmd_status, "docs": cmd_docs,
+        "status": cmd_status, "docs": cmd_docs, "review": cmd_review,
     }
     return handlers[args.command](args, config)
 
