@@ -11,6 +11,8 @@ metadata:
 
 ## 开始前
 
+指定 Work 的权限登记与最小包预检见 [MODEL-ACCESS](../../../../docs/review/MODEL-ACCESS.md)。每次正文审查先在本地运行 `python -m research_library.model_access prepare`，自动复核 Work/PDF/衍生文本哈希、范围与环境并留审计。CE-POL-01 当前未生效，预检仍 blocked；不要读取生成候选文本或修改 provenance 放行。缺少登记时保持 blocked。此步骤不替代下述现行 preflight。
+
 1. 在项目根读取 AGENTS.md、四份根科研规程、相关 CE-01R 契约。当前是 **DRAFT v1.1，未生效**；仅作为待批准的评价参考。冻结文件哈希不代表签署，不修改清单或规程。CE-02 人工通道与 CE-03 解析接口分别见 `docs/review/CE-02-ANNOTATION-PLAN.md`、`docs/parsing/README.md`。
 2. 限定本次模式和输入：work_id、本地 PDF、现有 Docling JSON、RQ 的明确版本、指定 blinded 条目或 EvidenceCard 草稿。只读指定对象，不遍历全库；缺少范围时先请求明确范围。馆藏与 RQ 决策分离；RQ 未批准/缺版本时只给 unresolved 草稿。
 3. **在模型看到来源内容之前**，通过本地确定性工具执行 [使用说明](references/usage.md) 的 preflight。不要先读取摘要/全文到会话，再检查许可。本地工具读取不等于模型离线推理。现行 ANNOTATION_GUIDE §9.2 禁止摘要/PDF 出站；即使 OA/CC 授权也不能豁免数据政策。PDF、Docling 全文衍生物和摘要不得进入当前云模型。机构受限全文、儿童个人信息、密钥不能读取到模型或上传。不能预检的输入停止；可以只审查获准的元数据并明确局限。
