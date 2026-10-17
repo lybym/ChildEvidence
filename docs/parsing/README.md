@@ -167,3 +167,7 @@ python -m research_library parse report --format json
   多次幂等、路径变化、模型不可用、缓存污染。
 - POC 10 份 PDF 的真实 E2E 回归记录见本目录
   `poc10-e2e-report.md`（聚合统计）与本地产物（不入 Git）。
+
+## 下一阶段衔接
+
+本目录说明已有 CE-03 文档加工能力。成长支持路线将复用它的来源定位契约，但 Evidence/Claim、专业方法和人格资产必须独立设计与验收；解析完成不代表可发布教育行为。开发依赖见 [Issue 索引](../roadmap/growth-support-issues.md)，历史结果以各报告声明的范围为准。

@@ -1,5 +1,7 @@
 # CE-POL-01 最小权限登记实现（待批准、待验收）
 
+> 路线衔接（2026-10-17）：当前实现仍是科研生产侧预检，不是成长支持插件的个人数据权限系统。下一阶段接入获准最小包、按实际服务/环境记录模型身份，并接续 #10；任务见 [Issue 索引](../roadmap/growth-support-issues.md)。本次路线更新不改变以下门禁。
+
 依据 [政策 PR #8](https://github.com/lybym/ChildEvidence/pull/8)。现行出站政策继续有效；`POLICY_ACTIVE=False` 是代码门禁，没有启动参数或环境变量豁免。登记 `allowed` 也不会授权当前模型读取正文。正式批准和代码验收后，另行同步规程、Skill、包输入校验器及激活门禁；本变更不代签批准。
 
 标准库工具：`python -m research_library.model_access register --record <本地记录.json>`。
