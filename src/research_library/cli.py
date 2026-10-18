@@ -567,6 +567,93 @@ def cmd_evidence(args, config: Config) -> int:
     return 2
 
 
+# ------------------------------------------------------------- assets (Issue #15)
+def _assets_db(args, config: Config) -> Path:
+    return Path(args.db) if getattr(args, "db", None) else config.db_path
+
+
+def cmd_assets(args, config: Config) -> int:
+    """Professional assets (Issue #15): migrate / validate / seed-demo / show / blockers."""
+    from . import assets as am
+
+    action = args.assets_action
+
+    def _die(err: Exception) -> int:
+        print(f"ERROR: {err}")
+        return 2
+
+    if action == "migrate":
+        db_path = _assets_db(args, config)
+        try:
+            result = am.migrate_with_backup(db_path)
+        except (OSError, sqlite3.Error) as e:
+            return _die(e)
+        print(json.dumps(result, ensure_ascii=False, indent=1))
+        return 0 if result["integrity"] == "ok" else 1
+
+    if action == "validate":
+        path = Path(args.file)
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as e:
+            return _die(e)
+        if not isinstance(payload, dict) or "kind" not in payload or "record" not in payload:
+            return _die(ValueError(
+                "expected a JSON object {\"kind\": <record kind>, \"record\": {...}}"))
+        try:
+            errors = am.validate_record(payload["kind"], payload["record"])
+        except am.AssetsError as e:
+            return _die(e)
+        print(json.dumps({"kind": payload["kind"], "valid": not errors,
+                          "schema_version": am.SCHEMA_VERSION,
+                          "errors": errors}, ensure_ascii=False, indent=1))
+        return 0 if not errors else 2
+
+    if action == "seed-demo":
+        if not getattr(args, "db", None):
+            return _die(ValueError(
+                "seed-demo requires an explicit --db path (demo assets are synthetic-only "
+                "and must never be seeded into the production library)"))
+        try:
+            conn = db.connect(_assets_db(args, config))
+        except sqlite3.Error as e:
+            return _die(e)
+        try:
+            result = am.seed_demo(conn)
+        except am.AssetsError as e:
+            return _die(e)
+        finally:
+            conn.close()
+        print(json.dumps(result, ensure_ascii=False, indent=1))
+        return 0
+
+    if action in ("show", "blockers"):
+        if not args.kind or not args.asset_id or args.revision is None:
+            return _die(ValueError(f"{action} requires --kind, --asset-id and --revision"))
+        try:
+            conn = db.connect(_assets_db(args, config))
+        except sqlite3.Error as e:
+            return _die(e)
+        try:
+            if action == "show":
+                record = am.get_record(conn, args.kind, args.asset_id, args.revision)
+                if record is None:
+                    return _die(am.AssetsError(
+                        f"{args.kind} {args.asset_id!r}@{args.revision} does not exist"))
+                print(json.dumps(record, ensure_ascii=False, indent=1, sort_keys=True))
+                return 0
+            result = am.asset_blockers(conn, args.kind, args.asset_id, args.revision)
+        except am.AssetsError as e:
+            return _die(e)
+        finally:
+            conn.close()
+        print(json.dumps(result, ensure_ascii=False, indent=1))
+        return 0
+
+    print(f"ERROR: unknown assets action {action!r}")
+    return 2
+
+
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(prog="research", description="ChildEvidence Research Library v0.1")
     parser.add_argument("--data-dir", default=None, help="data directory (default: <project>/data/research-library, override with CHILDEVIDENCE_DATA_DIR)")
@@ -669,6 +756,21 @@ def main(argv=None) -> int:
                    help="map-pilot: insert the mapped source version (default: dry run)")
     p.add_argument("--claim-id", default=None, help="summary: claim id")
 
+    # Professional assets: Strategy/SupportMethod/InteractionProfile/EvaluationCase (Issue #15)
+    p = sub.add_parser("assets",
+                       help="professional assets: migrate/validate/seed-demo/show/blockers")
+    p.add_argument("assets_action",
+                   choices=("migrate", "validate", "seed-demo", "show", "blockers"))
+    p.add_argument("--db", default=None,
+                   help="library database path (required for seed-demo; default: config data dir)")
+    p.add_argument("--file", default=None, help="validate: JSON file {kind, record}")
+    p.add_argument("--kind", default=None,
+                   help="show/blockers: asset kind (strategy/support_method/"
+                        "interaction_profile/evaluation_case)")
+    p.add_argument("--asset-id", default=None, help="show/blockers: stable asset id")
+    p.add_argument("--revision", type=int, default=None,
+                   help="show/blockers: asset revision")
+
     args = parser.parse_args(argv)
     config = Config(data_dir=Path(args.data_dir) if args.data_dir else None)
     config.ensure_dirs()
@@ -676,7 +778,7 @@ def main(argv=None) -> int:
         "discover": cmd_discover, "verify": cmd_verify, "acquire": cmd_acquire,
         "verify-pdfs": cmd_verify_pdfs, "export": cmd_export, "import-pdf": cmd_import_pdf,
         "status": cmd_status, "docs": cmd_docs, "review": cmd_review,
-        "parse": cmd_parse, "evidence": cmd_evidence,
+        "parse": cmd_parse, "evidence": cmd_evidence, "assets": cmd_assets,
     }
     return handlers[args.command](args, config)
 

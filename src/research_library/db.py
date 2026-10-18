@@ -13,6 +13,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from .evidence import EVIDENCE_DDL
+from .assets import ASSETS_DDL
 
 BASE_SCHEMA = """
 CREATE TABLE IF NOT EXISTS works (
@@ -135,7 +136,11 @@ CREATE TABLE IF NOT EXISTS runs (
 # same additive migration (CREATE TABLE IF NOT EXISTS only; works/history
 # tables are never rewritten). The recorded migration entry with a pre-change
 # backup is research_library.evidence.migrate_with_backup (Issue #14 失败与回滚).
-SCHEMA = BASE_SCHEMA + EVIDENCE_DDL
+#
+# Issue #15 additive professional-asset tables follow the same pattern; the
+# recorded entry with a pre-change backup is
+# research_library.assets.migrate_with_backup.
+SCHEMA = BASE_SCHEMA + EVIDENCE_DDL + ASSETS_DDL
 
 JSON_FIELDS = {
     "authors", "issn", "research_domains", "topic_tags", "theoretical_frameworks",

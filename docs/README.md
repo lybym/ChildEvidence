@@ -18,6 +18,7 @@
 ## 当前能力说明
 
 - [Evidence/Claim 领域模型（#14）](evidence/EVIDENCE-MODEL.md)：科研语义层对象、严格校验入口、增量迁移与 #10 映射；不声称科研结论或发布资格。
+- [专业资产领域模型（#15）](assets/ASSET-MODEL.md)：Strategy/SupportMethod/InteractionProfile/EvaluationCase、公共信封与 GS-04 人格版本规则、增量迁移与最小合成 demo 链；不声称科研结论、教育有效性或发布资格。
 - [CE-02 人工盲法复核](review/CE-02-ANNOTATION-PLAN.md)：工具与人工执行分开验收。
 - [CE-03 受控解析](parsing/README.md)：文档加工与科研证据语义分开。
 - [AI Reviewer 使用](../.agents/skills/child-evidence-reviewer/references/usage.md)：科研生产 Skill，不是儿童交互插件。

@@ -49,6 +49,7 @@ from uuid import uuid4
 
 from .governance import HUMAN_REVIEW_ORIGINS
 from .astra_pilot import ISSUE_URL as PILOT_ISSUE_URL
+from .strict_schema import strict_validate as _strict_validate
 
 SCHEMA_VERSION = "ce.evidence/1"
 
@@ -193,6 +194,11 @@ class EvidenceError(ValueError):
 
 # ---------------------------------------------------------------------------
 # Strict schema loading + validation (Issue #14 验收 #2 / #3)
+#
+# The strict JSON-Schema-subset validator (``additionalProperties: false``,
+# numeric bounds, patterns, const/enum) lives in ``research_library.strict_schema``
+# since Issue #15 so the professional-assets layer shares the exact same
+# rejection semantics; see that module for the implementation notes.
 # ---------------------------------------------------------------------------
 
 _SCHEMA_CACHE: dict[str, dict] = {}
@@ -218,82 +224,6 @@ def schema_path(kind: str) -> str:
     """Filesystem path of the packaged schema (diagnostics/tests)."""
     return str(resources.files("research_library.contracts.evidence").joinpath(
         f"{kind}.schema.json"))
-
-
-_TYPE_MAP = {
-    "object": dict,
-    "array": list,
-    "string": str,
-    "number": (int, float),
-    "integer": int,
-    "boolean": bool,
-    "null": type(None),
-}
-
-
-def _type_ok(value, expected: str) -> bool:
-    target = _TYPE_MAP[expected]
-    if expected == "integer" and isinstance(value, bool):
-        return False  # bool is an int subclass; only a real integer matches
-    if expected == "number" and isinstance(value, bool):
-        return False
-    return isinstance(value, target)
-
-
-def _strict_validate(data, schema, path: str, errors: list[str]) -> None:
-    """JSON-Schema subset with additionalProperties + numeric bounds.
-
-    Superset of the keywords the governance mini-validator supports; the
-    additions (``additionalProperties: false``, ``minimum``/``maximum``) are
-    exactly what Issue #14 验收 #2 requires and what the partial governance
-    validator would silently ignore.
-    """
-    if not isinstance(schema, dict):
-        errors.append(f"{path}: invalid schema node (not an object)")
-        return
-    expected_type = schema.get("type")
-    if expected_type is not None:
-        types = [expected_type] if isinstance(expected_type, str) else list(expected_type)
-        if not any(_type_ok(data, t) for t in types):
-            errors.append(f"{path}: expected type {'/'.join(types)}, got {type(data).__name__}")
-            return
-    if "const" in schema and data != schema["const"]:
-        errors.append(f"{path}: expected const {schema['const']!r}, got {data!r}")
-    if "enum" in schema and data not in schema["enum"]:
-        errors.append(f"{path}: {data!r} not in enum {schema['enum']!r}")
-    if isinstance(data, str):
-        if "minLength" in schema and len(data) < schema["minLength"]:
-            errors.append(f"{path}: shorter than minLength={schema['minLength']}")
-        if "maxLength" in schema and len(data) > schema["maxLength"]:
-            errors.append(f"{path}: longer than maxLength={schema['maxLength']}")
-        if "pattern" in schema and re.search(schema["pattern"], data) is None:
-            errors.append(f"{path}: {data!r} does not match pattern {schema['pattern']!r}")
-    if isinstance(data, (int, float)) and not isinstance(data, bool):
-        if "minimum" in schema and data < schema["minimum"]:
-            errors.append(f"{path}: {data} below minimum={schema['minimum']}")
-        if "maximum" in schema and data > schema["maximum"]:
-            errors.append(f"{path}: {data} above maximum={schema['maximum']}")
-    if isinstance(data, list):
-        if "minItems" in schema and len(data) < schema["minItems"]:
-            errors.append(f"{path}: fewer than minItems={schema['minItems']}")
-        if "maxItems" in schema and len(data) > schema["maxItems"]:
-            errors.append(f"{path}: more than maxItems={schema['maxItems']}")
-        item_schema = schema.get("items")
-        if item_schema:
-            for i, item in enumerate(data):
-                _strict_validate(item, item_schema, f"{path}[{i}]", errors)
-    if isinstance(data, dict):
-        for key in schema.get("required", []):
-            if key not in data:
-                errors.append(f"{path}: missing required property {key!r}")
-        properties = schema.get("properties", {})
-        if schema.get("additionalProperties") is False:
-            for key in data:
-                if key not in properties:
-                    errors.append(f"{path}: unexpected field {key!r} (additionalProperties=false)")
-        for key, sub in properties.items():
-            if key in data:
-                _strict_validate(data[key], sub, f"{path}.{key}", errors)
 
 
 def validate_record(kind: str, record: dict) -> list[str]:
