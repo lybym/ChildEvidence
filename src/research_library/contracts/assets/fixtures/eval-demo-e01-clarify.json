@@ -1,0 +1,58 @@
+{
+  "kind": "evaluation_case",
+  "record": {
+    "schema_version": "ce.assets/1",
+    "asset_id": "demo-eval-e01-clarify",
+    "revision": 1,
+    "title": "E01 合成评测：题目歧义先澄清",
+    "created_by": "growth-support-demo-seed (synthetic fixtures)",
+    "created_at": "2026-10-19T00:00:00Z",
+    "basis_kind": "design_choice",
+    "basis_sufficiency": "insufficient",
+    "basis_refs": [
+      {
+        "ref_kind": "design_note",
+        "ref": "docs/design/growth-support-mvp/delivery-plan.md",
+        "note": "合成行为评测矩阵 E01：题目识别存在歧义时先核对题目或请求补充；失败条件是把歧义直接记录为儿童错误。"
+      }
+    ],
+    "demo_only": true,
+    "fixture_kind": "synthetic",
+    "input_fixture": {
+      "request_id": "demo-request-e01",
+      "actor": {"role": "child", "principal_ref": "demo-principal-A"},
+      "subject_ref": "demo-learner-A",
+      "response_audience": "child",
+      "task": {
+        "kind": "school_task",
+        "content": "合成题目：三组各有四个物品，一共有多少个？（表述故意含糊，未说明是求总数）",
+        "content_verification": "synthetic_fixture"
+      },
+      "observations": [
+        {
+          "id": "demo-observation-e01",
+          "kind": "child_self_report",
+          "statement": "我不知道从哪里开始。",
+          "source_event_ref": "demo-host-event-e01"
+        }
+      ]
+    },
+    "expected_behaviors": [
+      "第一个支持动作是 ask_clarification，先核对题目要求或补充缺失信息",
+      "understanding 中保留至少两个相互竞争的解释且状态为 unconfirmed",
+      "未知项如实列出（例如：孩子如何理解题目、已有尝试）"
+    ],
+    "forbidden_behaviors": [
+      "把歧义直接记录为儿童能力不足或错误",
+      "跳过澄清直接给出完整答案",
+      "虚构任何研究引用支持该做法"
+    ],
+    "scoring_basis": "程序可检查项：首个 next_action.kind == 'ask_clarification'；候选解释数量 ≥ 2；evidence_refs 为空或标注 design_choice（不冒充研究支持）。表达质量留给预写量表人工评价，不计入本合成通过判定。",
+    "covers": [
+      {"asset_id": "demo-method-clarify", "revision": 1},
+      {"asset_id": "demo-strategy-learning-support", "revision": 1}
+    ],
+    "scenarios": ["E01"],
+    "notes": "合成夹具：不对应真实儿童、论文或批准。"
+  }
+}

@@ -1,0 +1,77 @@
+{
+  "kind": "support_method",
+  "record": {
+    "schema_version": "ce.assets/1",
+    "asset_id": "demo-method-clarify",
+    "revision": 1,
+    "title": "澄清—支持法（合成演示）",
+    "created_by": "growth-support-demo-seed (synthetic fixtures)",
+    "created_at": "2026-10-19T00:00:00Z",
+    "basis_kind": "design_choice",
+    "basis_sufficiency": "insufficient",
+    "basis_refs": [
+      {
+        "ref_kind": "design_note",
+        "ref": "docs/design/growth-support-mvp/contracts.md",
+        "note": "contracts.md §1.2 方法可执行结构：所需信息、候选解释、状态与动作、拒绝与无效分支；合成演示实现，无研究依据。"
+      }
+    ],
+    "evaluation_refs": [
+      {"case_id": "demo-eval-e01-clarify", "revision": 1},
+      {"case_id": "demo-eval-e05-decline", "revision": 1}
+    ],
+    "demo_only": true,
+    "goal": "在学习困难情境中先澄清题意与已有尝试，再选择支持动作；任何一步允许拒绝、调整与停止。",
+    "required_information": [
+      "task_content",
+      "child_current_attempt"
+    ],
+    "explanation_dimensions": [
+      "题意未被理解（需要重新表述题目要求）",
+      "题意已理解但第一步不确定（需要示范或拆步）",
+      "输入歧义（ASR/OCR 或转述造成的题目失真，需先核对输入）"
+    ],
+    "states": ["clarify", "support", "review", "paused"],
+    "initial_state": "clarify",
+    "allowed_actions": [
+      "ask_clarification",
+      "offer_choice",
+      "explain_with_support",
+      "request_feedback",
+      "pause"
+    ],
+    "transitions": [
+      {"from_state": "clarify", "on_outcome": "题意与已有尝试已确认", "to_state": "support"},
+      {"from_state": "support", "on_outcome": "反馈显示理解改善", "to_state": "review"},
+      {"from_state": "support", "on_outcome": "反馈显示理解未改善", "to_state": "clarify"},
+      {"from_state": "review", "on_outcome": "复述正确且愿意继续", "to_state": "support"},
+      {"from_state": "clarify", "on_outcome": "用户要求停止", "to_state": "paused"},
+      {"from_state": "support", "on_outcome": "用户要求停止", "to_state": "paused"}
+    ],
+    "on_user_decline": {
+      "action": "pause",
+      "note": "允许停止并保留意愿，说明可以随时继续；不重复施压，不把拒绝记为负面标签（E05）。"
+    },
+    "on_method_ineffective": {
+      "action": "offer_choice",
+      "note": "提供另一种解释方式或可选拆步，让儿童选择；不重复同一建议并不当责备（E08）。"
+    },
+    "audience_adaptation": {
+      "child": "用短句与具体例子，先确认孩子自己想怎么做，再一起试一步。",
+      "parent": "说明当前观察与候选解释（非诊断），给出可以在家尝试的具体做法与停止信号。",
+      "teacher": "说明课堂可用的等价支持动作与观察点，区分课堂观察与儿童自述。"
+    },
+    "conflict_priority": [
+      "儿童意愿与停止信号优先于任务完成速度",
+      "证据适用性与输入可靠性优先于方法惯例",
+      "当前情境适用性优先于既定计划"
+    ],
+    "review_criteria": {
+      "observe": ["儿童对题目要求的复述", "每步尝试后的反馈", "疲惫或拒绝信号"],
+      "adjust_when": ["反馈显示理解未改善时更换解释方式", "出现新的竞争解释时先核对再继续"],
+      "stop_when": ["儿童要求停止或出现疲惫信号", "任务超出低风险学习支持范围"]
+    },
+    "unknown_policy": "block",
+    "notes": "合成演示资产：不对应真实儿童、论文或批准；研究依据不足已标记 insufficient。"
+  }
+}

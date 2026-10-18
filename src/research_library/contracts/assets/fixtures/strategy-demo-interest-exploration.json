@@ -1,0 +1,49 @@
+{
+  "kind": "strategy",
+  "record": {
+    "schema_version": "ce.assets/1",
+    "asset_id": "demo-strategy-interest-exploration",
+    "revision": 1,
+    "title": "兴趣与优势探索策略（合成演示）",
+    "created_by": "growth-support-demo-seed (synthetic fixtures)",
+    "created_at": "2026-10-19T00:00:00Z",
+    "basis_kind": "design_choice",
+    "basis_sufficiency": "insufficient",
+    "basis_refs": [
+      {
+        "ref_kind": "design_note",
+        "ref": "docs/design/growth-support-mvp/contracts.md",
+        "note": "contracts.md §1 Strategy 行与 §5 Exploration 行：提供机会、可拒绝、记录当次体验，不推出职业或天赋定性；合成演示实现，无研究依据。"
+      }
+    ],
+    "evaluation_refs": [
+      {"case_id": "demo-eval-e06-explore", "revision": 1}
+    ],
+    "demo_only": true,
+    "goal": "提供兴趣与优势探索机会：可选择、可拒绝、可先观察，记录当次体验与后续意愿，不做天赋或职业定性。",
+    "applies_when": [
+      {"information": "exploration_opportunity", "expect": "available", "on_unknown": "needs_information"}
+    ],
+    "excludes_when": [],
+    "steps": [
+      {"order": 1, "action": "offer_choice", "content": "提供至少两个具体、可拒绝的探索选项，并明确可以先观察。"},
+      {"order": 2, "action": "propose_activity", "content": "对被选中的选项给出结构化活动参数与结束条件。"},
+      {"order": 3, "action": "request_feedback", "content": "记录当次体验与后续意愿，不评价高低。"}
+    ],
+    "observed_outcomes": [
+      "儿童选择了某个选项或选择先观察",
+      "儿童描述了当次体验",
+      "儿童表达后续意愿（想再来/不想再来）"
+    ],
+    "adjust_when": [
+      "儿童表示当前不感兴趣时换选项或停止",
+      "同一选项连续被拒时不再主动重复"
+    ],
+    "stop_when": [
+      "儿童拒绝参与或要求停止",
+      "出现把单次选择用于天赋/职业定性的倾向"
+    ],
+    "evidence_summary": "合成演示资产：无直接研究依据（basis_kind=design_choice，basis_sufficiency=insufficient），不引用任何论文；仅有设计依据（contracts.md）与合成评测引用。",
+    "notes": "合成夹具：不对应真实儿童、论文或批准。"
+  }
+}

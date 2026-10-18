@@ -1,0 +1,56 @@
+{
+  "$id": "childevidence:assets:evaluation_case:1",
+  "title": "EvaluationCase (Issue #15 synthetic behavior-evaluation fixture: synthetic inputs, expected/forbidden behaviors, scoring basis, covered asset versions; never real child records)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "asset_id", "revision", "title",
+                "created_by", "basis_kind", "basis_sufficiency", "fixture_kind",
+                "input_fixture", "expected_behaviors", "forbidden_behaviors",
+                "scoring_basis", "covers"],
+  "properties": {
+    "schema_version": {"type": "string", "const": "ce.assets/1"},
+    "asset_id": {"type": "string", "pattern": "^[a-z][a-z0-9-]{1,62}$"},
+    "revision": {"type": "integer", "minimum": 1, "maximum": 10000},
+    "supersedes_revision": {"type": ["integer", "null"], "minimum": 1},
+    "title": {"type": "string", "minLength": 1, "maxLength": 200},
+    "content_hash": {"type": "string", "pattern": "^sha256=[0-9a-f]{64}$"},
+    "created_by": {"type": "string", "minLength": 1, "maxLength": 120},
+    "created_at": {"type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$"},
+    "basis_kind": {"type": "string", "enum": ["direct_research", "research_synthesis", "application_inference", "design_choice"]},
+    "basis_sufficiency": {"type": "string", "enum": ["research_supported", "insufficient"]},
+    "basis_refs": {"type": "array", "maxItems": 64, "items": {
+      "type": "object", "additionalProperties": false,
+      "required": ["ref_kind", "ref", "note"],
+      "properties": {
+        "ref_kind": {"type": "string", "enum": ["claim", "source_version", "work", "evaluation_case", "design_note", "external"]},
+        "ref": {"type": "string", "minLength": 1, "maxLength": 200},
+        "note": {"type": "string", "minLength": 1, "maxLength": 500}
+      }
+    }},
+    "demo_only": {"type": "boolean"},
+    "review_origin": {"type": ["string", "null"], "enum": ["single_human", "independent_double_human", "adjudicated_human", "ai_draft", "multi_model_consistent", null]},
+    "review_status": {"type": "string", "enum": ["not_reviewed", "ai_reviewed", "human_reviewed"]},
+    "technical_validation": {"type": "string", "enum": ["not_run", "passed", "failed"]},
+    "scientific_appraisal": {"type": "string", "enum": ["not_done", "done"]},
+    "release_eligibility": {"type": "string", "enum": ["not_eligible", "eligible"]},
+    "lifecycle_status": {"type": "string", "enum": ["draft", "released", "superseded", "retracted"]},
+    "retraction_reason": {"type": ["string", "null"], "maxLength": 1000},
+    "retracted_at": {"type": ["string", "null"], "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$"},
+    "retraction_ref": {"type": ["string", "null"], "maxLength": 200},
+    "fixture_kind": {"type": "string", "const": "synthetic"},
+    "input_fixture": {"type": "object"},
+    "expected_behaviors": {"type": "array", "minItems": 1, "maxItems": 32, "items": {"type": "string", "minLength": 1, "maxLength": 500}},
+    "forbidden_behaviors": {"type": "array", "minItems": 1, "maxItems": 32, "items": {"type": "string", "minLength": 1, "maxLength": 500}},
+    "scoring_basis": {"type": "string", "minLength": 1, "maxLength": 2000},
+    "covers": {"type": "array", "minItems": 1, "maxItems": 64, "items": {
+      "type": "object", "additionalProperties": false,
+      "required": ["asset_id", "revision"],
+      "properties": {
+        "asset_id": {"type": "string", "pattern": "^[a-z][a-z0-9-]{1,62}$"},
+        "revision": {"type": "integer", "minimum": 1}
+      }
+    }},
+    "scenarios": {"type": "array", "maxItems": 16, "items": {"type": "string", "minLength": 1, "maxLength": 20}},
+    "notes": {"type": ["string", "null"], "maxLength": 2000}
+  }
+}

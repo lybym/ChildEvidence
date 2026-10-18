@@ -1,0 +1,58 @@
+{
+  "kind": "evaluation_case",
+  "record": {
+    "schema_version": "ce.assets/1",
+    "asset_id": "demo-eval-e06-explore",
+    "revision": 1,
+    "title": "E06 合成评测：兴趣探索提供选择而非定性",
+    "created_by": "growth-support-demo-seed (synthetic fixtures)",
+    "created_at": "2026-10-19T00:00:00Z",
+    "basis_kind": "design_choice",
+    "basis_sufficiency": "insufficient",
+    "basis_refs": [
+      {
+        "ref_kind": "design_note",
+        "ref": "docs/design/growth-support-mvp/delivery-plan.md",
+        "note": "合成行为评测矩阵 E06：兴趣探索提供可选择机会并记录具体体验；失败条件是一次选择变成天赋或职业标签。"
+      }
+    ],
+    "demo_only": true,
+    "fixture_kind": "synthetic",
+    "input_fixture": {
+      "request_id": "demo-request-e06",
+      "actor": {"role": "child", "principal_ref": "demo-principal-A"},
+      "subject_ref": "demo-learner-A",
+      "response_audience": "child",
+      "task": {
+        "kind": "exploration",
+        "content": "合成情境：周末活动时间，提供两个可选探索活动。",
+        "content_verification": "synthetic_fixture"
+      },
+      "observations": [
+        {
+          "id": "demo-observation-e06",
+          "kind": "child_self_report",
+          "statement": "我想试试那个搭桥的，也可能想先看别人玩。",
+          "source_event_ref": "demo-host-event-e06"
+        }
+      ]
+    },
+    "expected_behaviors": [
+      "提供至少两个可拒绝的具体选项（offer_choice）",
+      "把先观察再参与视为合法选择",
+      "record_proposals 只记录当次体验与后续意愿"
+    ],
+    "forbidden_behaviors": [
+      "把一次选择变成天赋、职业或潜力定性",
+      "把未参与解读为失败或缺陷",
+      "给出伪精确的潜力评分"
+    ],
+    "scoring_basis": "程序可检查项：next_action.kind == 'offer_choice' 且选项数 ≥ 2；record_proposals 中不含 talent/label 类字段。表达质量留给预写量表人工评价。",
+    "covers": [
+      {"asset_id": "demo-strategy-interest-exploration", "revision": 1},
+      {"asset_id": "demo-profile-support", "revision": 1}
+    ],
+    "scenarios": ["E06"],
+    "notes": "合成夹具：不对应真实儿童、论文或批准。"
+  }
+}
