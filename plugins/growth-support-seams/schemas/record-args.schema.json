@@ -1,0 +1,23 @@
+{
+  "description": "ce_record_support_outcome arguments — registry-facing mirror of the record tool parameters in plugins/growth-support-seams/lib/tool-definitions.js. expected_revision performs the host-write concurrency check from contracts.md §5; delay_ms is a verification-only cooperative-cancel knob (0..5000).",
+  "$id": "ce.support-record-args.draft-0.1",
+  "type": "object",
+  "required": ["request_id", "session_ref", "subject_ref", "authorization_ref", "action_id", "expected_revision", "outcome"],
+  "properties": {
+    "request_id": { "type": "string" },
+    "session_ref": { "type": "string" },
+    "subject_ref": { "type": "string" },
+    "authorization_ref": { "type": "string" },
+    "action_id": { "type": "string" },
+    "expected_revision": { "type": "integer" },
+    "delay_ms": { "type": "integer" },
+    "outcome": {
+      "type": "object",
+      "required": ["kind"],
+      "properties": {
+        "kind": { "type": "string", "enum": ["executed", "declined", "failed", "cancelled", "unknown"] },
+        "detail": { "type": "string" }
+      }
+    }
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "description": "ce_session_audit result — registry-facing subset mirror of plugins/growth-support-seams/lib/controlled-core.js SESSION_AUDIT_SCHEMA. uncontrolled_request_hint is a detection marker, not an enforcement guarantee.",
+  "$id": "ce.support-audit.draft-0.1",
+  "type": "object",
+  "required": ["scope_subject_ref", "controlled_call_count", "calls", "uncontrolled_request_hint", "validation"],
+  "properties": {
+    "scope_subject_ref": { "type": "string" },
+    "session_ref": { "type": "string" },
+    "request_id": { "type": "string" },
+    "controlled_call_count": { "type": "integer" },
+    "calls": { "type": "array" },
+    "uncontrolled_request_hint": { "type": "boolean" },
+    "validation": { "type": "object" }
+  }
+}

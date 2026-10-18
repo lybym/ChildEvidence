@@ -20,6 +20,7 @@
 - [CE-02 人工盲法复核](review/CE-02-ANNOTATION-PLAN.md)：工具与人工执行分开验收。
 - [CE-03 受控解析](parsing/README.md)：文档加工与科研证据语义分开。
 - [AI Reviewer 使用](../.agents/skills/child-evidence-reviewer/references/usage.md)：科研生产 Skill，不是儿童交互插件。
+- [DSH 接缝验证（#13）](verification/dsh-seam-verification/REPORT.md)及[能力矩阵](verification/dsh-seam-verification/CAPABILITY-MATRIX.md)：隔离 profile 合成验证；受控入口/最终输出在当前宿主版本不可实现，不声称强制专业流程成立。
 
 ## 历史与生成材料
 

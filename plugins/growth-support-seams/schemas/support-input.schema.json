@@ -1,0 +1,42 @@
+{
+  "description": "UnifiedSupportInput (contracts.md §2, draft-0.1) — registry-facing subset mirror of plugins/growth-support-seams/lib/controlled-core.js SUPPORT_INPUT_SCHEMA. Nullable/optional fields (input_quality.confidence, active_plan_ref) are deliberately undeclared so unknown values pass through untouched.",
+  "$id": "ce.support-input.draft-0.1",
+  "type": "object",
+  "required": ["schema_version", "request_id", "session_ref", "actor", "subject_ref", "response_audience", "intent"],
+  "properties": {
+    "schema_version": { "type": "string", "enum": ["ce.support-input.draft-0.1"] },
+    "request_id": { "type": "string" },
+    "session_ref": { "type": "string" },
+    "actor": {
+      "type": "object",
+      "required": ["role", "principal_ref"],
+      "properties": {
+        "role": { "type": "string", "enum": ["child", "parent", "teacher"] },
+        "principal_ref": { "type": "string" }
+      }
+    },
+    "subject_ref": { "type": "string" },
+    "response_audience": { "type": "string", "enum": ["child", "parent", "teacher"] },
+    "authorization_ref": { "type": "string" },
+    "intent": { "type": "string" },
+    "task": { "type": "object" },
+    "observations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "kind", "statement", "source_event_ref"],
+        "properties": {
+          "id": { "type": "string" },
+          "kind": { "type": "string", "enum": ["child_self_report", "adult_report", "host_observation", "model_inference"] },
+          "statement": { "type": "string" },
+          "source_event_ref": { "type": "string" }
+        }
+      }
+    },
+    "input_quality": { "type": "object" },
+    "context_snapshot": { "type": "object" },
+    "state_revision": { "type": "integer" },
+    "capabilities": { "type": "object" },
+    "asset_lock": { "type": "object" }
+  }
+}
