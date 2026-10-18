@@ -654,6 +654,121 @@ def cmd_assets(args, config: Config) -> int:
     return 2
 
 
+# ------------------------------------------------------------- publish (Issue #16)
+def cmd_publish(args, config: Config) -> int:
+    """Minimal private capability pack publisher + retraction mechanism (Issue #16)."""
+    from . import publish as pub
+
+    action = args.publish_action
+
+    def _die(err: Exception) -> int:
+        print(f"ERROR: {err}")
+        return 2
+
+    packs_dir = Path(args.out) if args.out else config.data_dir / "packs"
+    consumer_dir = Path(args.consumer_dir) if args.consumer_dir else config.data_dir / "consumer"
+
+    if action == "build":
+        if not args.pack_version:
+            return _die(ValueError("build requires --pack-version"))
+        try:
+            conn = db.connect(Path(args.db) if args.db else config.db_path)
+        except sqlite3.Error as e:
+            return _die(e)
+        try:
+            result = pub.build_pack(
+                conn, args.pack_version,
+                mode=pub.MODE_FOR_CLI_FLAG[args.mode],
+                publisher_ref=args.publisher_ref or pub.DEFAULT_PUBLISHER_REF,
+                packs_dir=packs_dir)
+        except (pub.PublishError, OSError) as e:
+            return _die(e)
+        finally:
+            conn.close()
+        print(json.dumps(result, ensure_ascii=False, indent=1))
+        return 0
+
+    if action == "verify":
+        if not args.pack:
+            return _die(ValueError("verify requires --pack <pack directory>"))
+        try:
+            result = pub.verify_pack(Path(args.pack),
+                                     runner_version=args.runner_version or pub.RUNNER_VERSION)
+        except (pub.PublishError, OSError) as e:
+            return _die(e)
+        print(json.dumps(result, ensure_ascii=False, indent=1))
+        return 0 if result["ok"] else 2
+
+    if action == "diff":
+        if not args.from_pack or not args.to_pack:
+            return _die(ValueError("diff requires --from <pack> --to <pack>"))
+        try:
+            result = pub.diff_packs(Path(args.from_pack), Path(args.to_pack))
+        except (pub.PublishError, OSError) as e:
+            return _die(e)
+        print(json.dumps(result, ensure_ascii=False, indent=1))
+        return 0
+
+    if action == "activate":
+        if not args.pack or not args.consumer_dir:
+            return _die(ValueError("activate requires --pack <pack directory> --consumer-dir <dir>"))
+        try:
+            result = pub.activate_pack(Path(args.pack), Path(args.consumer_dir))
+        except (pub.PublishError, OSError) as e:
+            return _die(e)
+        print(json.dumps(result, ensure_ascii=False, indent=1))
+        return 0
+
+    if action == "status":
+        try:
+            result = pub.pack_status(Path(args.consumer_dir))
+        except (pub.PublishError, OSError) as e:
+            return _die(e)
+        print(json.dumps(result, ensure_ascii=False, indent=1))
+        return 0
+
+    if action == "retract":
+        if not args.consumer_dir or not args.asset_id or not args.reason or not args.decision_ref:
+            return _die(ValueError(
+                "retract requires --consumer-dir, --asset-id, --reason and --decision-ref "
+                "(GS-03: append-style withdrawal with explicit reason and decision ref)"))
+        try:
+            result = pub.append_retraction(
+                Path(args.consumer_dir), asset_id=args.asset_id, reason=args.reason,
+                decision_ref=args.decision_ref, revision=args.revision,
+                content_hash=args.content_hash)
+        except (pub.PublishError, OSError) as e:
+            return _die(e)
+        print(json.dumps(result, ensure_ascii=False, indent=1))
+        return 0
+
+    if action == "read":
+        if not args.consumer_dir:
+            return _die(ValueError("read requires --consumer-dir <dir>"))
+        try:
+            if args.kind or args.asset_id:
+                if not (args.kind and args.asset_id and args.revision is not None):
+                    return _die(ValueError("read --kind/--asset-id require --revision too"))
+                resolved = pub.resolve_assets(Path(args.consumer_dir))
+                matches = [item for item in resolved["assets"]
+                           if item["kind"] == args.kind and item["asset_id"] == args.asset_id
+                           and item["revision"] == args.revision]
+                if not matches:
+                    return _die(pub.PublishError(
+                        f"{args.kind} {args.asset_id!r}@{args.revision} is not part of the "
+                        "active pack"))
+                result = matches[0]
+            else:
+                result = pub.resolve_assets(Path(args.consumer_dir))
+        except (pub.PublishError, OSError) as e:
+            return _die(e)
+        print(json.dumps(result, ensure_ascii=False, indent=1))
+        return 0
+
+    print(f"ERROR: unknown publish action {action!r}")
+    return 2
+
+
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(prog="research", description="ChildEvidence Research Library v0.1")
     parser.add_argument("--data-dir", default=None, help="data directory (default: <project>/data/research-library, override with CHILDEVIDENCE_DATA_DIR)")
@@ -771,6 +886,44 @@ def main(argv=None) -> int:
     p.add_argument("--revision", type=int, default=None,
                    help="show/blockers: asset revision")
 
+    # Minimal private capability pack publisher + retraction (Issue #16)
+    p = sub.add_parser("publish",
+                       help="capability packs: build/verify/diff/activate/status/retract/read")
+    p.add_argument("publish_action",
+                   choices=("build", "verify", "diff", "activate", "status", "retract", "read"))
+    p.add_argument("--db", default=None,
+                   help="build: library database path (default: config data dir)")
+    p.add_argument("--pack", default=None,
+                   help="verify/activate: pack directory (manifest.json + jsonl files)")
+    p.add_argument("--from", dest="from_pack", default=None, help="diff: source pack")
+    p.add_argument("--to", dest="to_pack", default=None, help="diff: target pack")
+    p.add_argument("--out", default=None,
+                   help="build: packs directory (default: <data-dir>/packs)")
+    p.add_argument("--consumer-dir", default=None,
+                   help="activate/status/retract/read: consumer area "
+                        "(default: <data-dir>/consumer)")
+    p.add_argument("--pack-version", default=None,
+                   help="build: pack version label (filesystem-safe)")
+    p.add_argument("--mode", default="release", choices=("release", "synthetic-demo"),
+                   help="build: release packs carry only eligible assets; "
+                        "synthetic-demo packs carry demo_only fixtures only")
+    p.add_argument("--publisher-ref", default=None,
+                   help="build: publisher reference (no credentials; authentication "
+                        "stays external)")
+    p.add_argument("--runner-version", default=None,
+                   help="verify: runner version to check against the pack minimum")
+    p.add_argument("--kind", default=None,
+                   help="read: asset kind (strategy/support_method/"
+                        "interaction_profile/evaluation_case)")
+    p.add_argument("--asset-id", default=None, help="retract/read: stable asset id")
+    p.add_argument("--revision", type=int, default=None,
+                   help="retract/read: asset revision (omit for asset-wide withdrawal)")
+    p.add_argument("--content-hash", default=None,
+                   help="retract: optional content hash binding (sha256=<hex>)")
+    p.add_argument("--reason", default=None, help="retract: withdrawal reason (required)")
+    p.add_argument("--decision-ref", default=None,
+                   help="retract: withdrawal decision record reference (required)")
+
     args = parser.parse_args(argv)
     config = Config(data_dir=Path(args.data_dir) if args.data_dir else None)
     config.ensure_dirs()
@@ -779,6 +932,7 @@ def main(argv=None) -> int:
         "verify-pdfs": cmd_verify_pdfs, "export": cmd_export, "import-pdf": cmd_import_pdf,
         "status": cmd_status, "docs": cmd_docs, "review": cmd_review,
         "parse": cmd_parse, "evidence": cmd_evidence, "assets": cmd_assets,
+        "publish": cmd_publish,
     }
     return handlers[args.command](args, config)
 

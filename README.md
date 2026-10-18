@@ -218,6 +218,6 @@ API Key 依赖、常驻服务或批量调度。使用方法、Schema/哈希说�
 4. 形成云端私有资产服务和端到端行为评测；真实发布资格满足后开展有边界的私人试用。
 5. 根据实际失败类型与成本，评估语义检索、小模型、其他 Harness 和最后的 LumiThink 集成。
 
-正式包保留 `catalog.jsonl`、`evidence-cards.jsonl`、`strategies.jsonl`、`manifest.json`，按契约增加方法、人格与评测资产。个人记录不进入包，Schema/包/插件版本分别管理；回滚不能恢复已撤回内容。
+正式包保留 `catalog.jsonl`、`evidence-cards.jsonl`、`strategies.jsonl`、`manifest.json`，按契约增加方法、人格与评测资产。个人记录不进入包，Schema/包/插件版本分别管理；回滚不能恢复已撤回内容。最小私有发布器与撤回机制（#16）的实现记录见 [docs/publish/PACK-MODEL.md](docs/publish/PACK-MODEL.md)。
 
 具体依赖和实际编号见 [Issue 执行索引](docs/roadmap/growth-support-issues.md)。文档与研发授权不等于规程生效、原文外发或真实使用批准；本次不自动打开任何门禁。

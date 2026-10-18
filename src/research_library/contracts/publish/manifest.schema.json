@@ -1,0 +1,82 @@
+{
+  "$id": "childevidence:publish:manifest:1",
+  "title": "Knowledge pack manifest (Issue #16: minimal private capability pack; content hashes separated from publisher authentication)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "pack_version", "pack_id", "content_class",
+               "eligible_for_real_user_delivery", "built_at", "publisher",
+               "compatibility", "counts", "rights", "files", "pack_hash"],
+  "properties": {
+    "schema_version": {"type": "string", "const": "ce.pack/1"},
+    "pack_version": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$"},
+    "pack_id": {"type": "string", "pattern": "^ce-pack-[A-Za-z0-9][A-Za-z0-9._-]{0,79}$"},
+    "content_class": {"type": "string", "enum": ["synthetic_demo", "research_assets"]},
+    "eligible_for_real_user_delivery": {"type": "boolean", "const": false},
+    "built_at": {"type": "string", "minLength": 1, "maxLength": 40},
+    "publisher": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["publisher_ref", "authentication", "credentials_embedded"],
+      "properties": {
+        "publisher_ref": {"type": "string", "minLength": 1, "maxLength": 120},
+        "authentication": {"type": "string", "const": "external"},
+        "credentials_embedded": {"type": "boolean", "const": false}
+      }
+    },
+    "compatibility": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["assets_schema", "evidence_schema", "min_runner"],
+      "properties": {
+        "assets_schema": {"type": "string", "const": "ce.assets/1"},
+        "evidence_schema": {"type": "string", "const": "ce.evidence/1"},
+        "min_runner": {"type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"}
+      }
+    },
+    "counts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["catalog", "evidence_cards", "strategy", "support_method",
+                   "interaction_profile", "evaluation_case"],
+      "properties": {
+        "catalog": {"type": "integer", "minimum": 0},
+        "evidence_cards": {"type": "integer", "minimum": 0},
+        "strategy": {"type": "integer", "minimum": 0},
+        "support_method": {"type": "integer", "minimum": 0},
+        "interaction_profile": {"type": "integer", "minimum": 0},
+        "evaluation_case": {"type": "integer", "minimum": 0}
+      }
+    },
+    "rights": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["redistribution_scope", "full_text_included",
+                   "abstracts_included", "license_unknown_count"],
+      "properties": {
+        "redistribution_scope": {"type": "string", "const": "metadata_only"},
+        "full_text_included": {"type": "boolean", "const": false},
+        "abstracts_included": {"type": "boolean", "const": false},
+        "license_unknown_count": {"type": "integer", "minimum": 0}
+      }
+    },
+    "files": {
+      "type": "array",
+      "minItems": 6,
+      "maxItems": 6,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "sha256", "record_count"],
+        "properties": {
+          "name": {"type": "string", "enum": ["catalog.jsonl", "evidence-cards.jsonl",
+                                              "strategies.jsonl", "methods.jsonl",
+                                              "interaction-profiles.jsonl",
+                                              "evaluation-cases.jsonl"]},
+          "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+          "record_count": {"type": "integer", "minimum": 0}
+        }
+      }
+    },
+    "pack_hash": {"type": "string", "pattern": "^sha256=[0-9a-f]{64}$"}
+  }
+}
