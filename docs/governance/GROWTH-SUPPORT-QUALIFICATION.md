@@ -72,8 +72,9 @@ CE-01R 契约族（label-tiers、decision-scope）、设计文档
 - 依据四分：`direct_research`（直接研究支持）/ `research_synthesis`（综合）/
   `application_inference`（应用推导）/ `design_choice`（设计选择）；
   研究支持、综合推导与设计选择明确区分，价值与交互偏好不得伪装成实证结论。
-- 新研究**不直接改变运行行为**：运行时只应用已发布版本；更新必须携带
-  评测引用（EvaluationCase），只能作为新版本发布生效（契约 GS-04）。
+- 新研究**不直接改变运行行为**：运行时只应用已发布版本；任何版本（含首版
+  revision=1）都必须携带依据与评测引用（EvaluationCase，覆盖对应资产版本），
+  只能作为新版本发布生效，不存在 immediate 改写运行行为的版本豁免（契约 GS-04）。
 - 稳定人格不随一次模型推理漂移；更新与回滚保留旧版本与变更理由。
 
 ## 5. 可执行正负向验收标准（契约规则 GS-01…GS-06）
@@ -85,11 +86,21 @@ CE-01R 契约族（label-tiers、decision-scope）、设计文档
 | 规则 | 正向（允许通过） | 负向（必须拒绝/报错） |
 |---|---|---|
 | GS-01 发布资格签署 | approved 携带 approved_by、approved_date 与 decision_record_ref | 缺签署、缺日期或缺决定记录引用 |
-| GS-02 AI 一致性 | AI 来源记录停留在 pending，如实标记 | `ai_draft`/`multi_model_consistent` 出现 approved/revoked |
-| GS-03 发布撤回 | revoked 携带理由、日期与决定引用；保留原 revision 与审计链 | 无理由/日期的撤回；以删除代替追加式撤回 |
-| GS-04 人格更新 | InteractionProfile 修订 > 1 携带 basis_refs 与 evaluation_refs，`runtime_effect=new_version_release` | 无评测引用的更新；声明 `immediate` 直接改写运行行为 |
+| GS-02 审核来源与 AI 一致性 | approved/revoked 携带人工审核来源（single_human / independent_double_human / adjudicated_human）；AI 来源记录停留在 pending，如实标记 | `ai_draft`/`multi_model_consistent` **或来源未标记（null/unknown）**出现 approved/revoked |
+| GS-03 发布撤回 | revoked 携带理由、日期与决定引用；保留原 revision 与审计链 | 无理由/日期的撤回；以删除代替追加式撤回（见下方局限登记） |
+| GS-04 人格资产版本 | InteractionProfile **任何版本（含首版）**携带 basis_refs 与 evaluation_refs，`runtime_effect=new_version_release` | 任一版本缺评测引用或依据；声明 `immediate` 直接改写运行行为（无版本豁免） |
 | GS-05 未审核拒绝 | approved 前置 technical_validation=passed 且 scientific_appraisal=done | 校验未跑/评价未做却 approved |
 | GS-06 两类数据边界 | research_library 不携带 subject_ref；personal_growth_record 由宿主管理且支持纠正删除 | 科研库混入个人主体引用；个人记录无宿主管理与纠正能力 |
+
+已登记局限（契约 `known_limitations`，如实声明单记录校验的边界）：
+
+- **GS-LIM-01（跨记录语义）**：本契约与单记录校验器无法检测删除历史版本、
+  改写 revision 链或以删除代替追加式撤回；这些语义由后续实现任务
+  （#12/#14/#15/#16 的发布器与审计层）做跨记录校验。单记录校验通过不等于
+  版本链完整性已证明。
+- **GS-LIM-02（决定记录引用）**：GS-01 的 `decision_record_ref` 仅作存在性
+  检查，其指向记录的真实性由人工治理流程与审计保证；approved 同时要求人工
+  review_origin 以收窄伪造面。
 
 两类数据边界语义：
 
@@ -126,7 +137,10 @@ CE-01R 契约族（label-tiers、decision-scope）、设计文档
 - 治理文档集一致性（含本文件标记、六维、未决登记与 #2/#10 引用）：
   `tests/test_governance_contracts.py` 与新增测试均通过；
 - 四份规程保持 DRAFT v1.1 未改动；历史数字与签署记录未改写
-  （既有 errata/POC 指针检查通过）。
+  （既有 errata/POC 指针检查通过）；
+- 单记录校验的已知局限（跨记录追加性/版本链不可变、decision_record_ref
+  真实性）已在 §5 与契约 `known_limitations`（GS-LIM-01/GS-LIM-02）登记，
+  由后续实现任务的跨记录审计承接；本文件不宣称这些语义已被本契约覆盖。
 
 可复现命令（项目根）：
 

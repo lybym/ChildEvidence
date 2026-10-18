@@ -16,6 +16,9 @@ Covers the machine-checkable deliverables of Issue #11:
 All checks are offline and read-only against repository files.
 """
 
+import json
+import shutil
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -224,11 +227,40 @@ class ReleaseDecisionRulesTest(unittest.TestCase):
         first_revision = _base_record(
             asset_kind="interaction_profile",
             revision=1,
+            basis_refs=["synthesis-demo-001"],
             evaluation_refs=[],
             decision_status="pending",
         )
-        # revision == 1 is an initial version, not an update: GS-04 does not apply.
-        self.assertEqual(validate_release_decision_record(first_revision), [])
+        # Review P1-1 regression: revision 1 must NOT bypass GS-04 — persona
+        # assets are evaluable and version-released at every revision.
+        self.assertEqual(_rule_ids(validate_release_decision_record(first_revision)), ["GS-04"])
+        first_revision_good = _base_record(
+            asset_kind="interaction_profile",
+            asset_ref="profile-demo-test@1",
+            revision=1,
+            basis_refs=["synthesis-demo-001"],
+            evaluation_refs=["evalcase-demo-001"],
+            decision_status="pending",
+        )
+        self.assertEqual(validate_release_decision_record(first_revision_good), [])
+
+    def test_persona_v1_immediate_without_evaluation_is_rejected(self):
+        # Exact probe from review P1-1: revision=1 + runtime_effect=immediate +
+        # empty evaluation_refs used to pass with zero errors.
+        record = _base_record(
+            asset_kind="interaction_profile",
+            asset_ref="profile-demo-v1@1",
+            revision=1,
+            basis_refs=[],
+            evaluation_refs=[],
+            runtime_effect="immediate",
+            decision_status="approved",
+            approved_by="product-owner",
+            approved_date="2026-10-18",
+            decision_record_ref="GS-test-approval",
+        )
+        errors = validate_release_decision_record(record)
+        self.assertEqual(_rule_ids(errors), ["GS-04"])
 
     def test_schema_rejects_malformed_dates(self):
         record = _base_record(decision_status="pending", approved_date="2026/10/18")
@@ -270,6 +302,40 @@ class AiConsistencyTest(unittest.TestCase):
     def test_non_human_origins_stay_pending(self):
         for origin in NON_HUMAN_REVIEW_ORIGINS:
             record = _base_record(review_origin=origin, decision_status="pending")
+            self.assertEqual(validate_release_decision_record(record), [])
+
+    def test_approved_with_unmarked_origin_is_rejected(self):
+        # Review P2-1 regression: an approved record with review_origin=null
+        # (unknown review source) used to pass all rules.
+        record = _base_record(
+            review_origin=None,
+            decision_status="approved",
+            approved_by="knowledge-owner",
+            approved_date="2026-10-18",
+            decision_record_ref="GS-test",
+        )
+        errors = validate_release_decision_record(record)
+        self.assertEqual(_rule_ids(errors), ["GS-02"])
+
+    def test_revoked_with_unmarked_origin_is_rejected(self):
+        record = _base_record(
+            review_origin=None,
+            decision_status="revoked",
+            decision_record_ref="GS-test",
+            revoked_reason="复审撤回",
+            revoked_date="2026-10-18",
+        )
+        self.assertEqual(_rule_ids(validate_release_decision_record(record)), ["GS-02"])
+
+    def test_approved_requires_each_human_origin_to_be_marked(self):
+        for origin in HUMAN_REVIEW_ORIGINS:
+            record = _base_record(
+                review_origin=origin,
+                decision_status="approved",
+                approved_by="knowledge-owner",
+                approved_date="2026-10-18",
+                decision_record_ref="GS-test",
+            )
             self.assertEqual(validate_release_decision_record(record), [])
 
 
@@ -348,6 +414,64 @@ class QualificationDocConsistencyTest(unittest.TestCase):
             text = (ROOT / rel).read_text(encoding="utf-8")
             self.assertIn("DRAFT v1.1", text)
             self.assertIn("待人工审核", text)
+
+
+class ContractSelfDescriptionTest(unittest.TestCase):
+    def test_cross_record_limitations_are_registered(self):
+        # Review P2-2: single-record scope must be declared, not implied.
+        contract, _ = load_gs_contract("gs-qualification")
+        limitations = {lim.get("id") for lim in contract.get("known_limitations", [])}
+        self.assertIn("GS-LIM-01", limitations)
+        self.assertIn("GS-LIM-02", limitations)
+        text = GS_DOC.read_text(encoding="utf-8")
+        self.assertIn("GS-LIM-01", text)
+        self.assertIn("GS-LIM-02", text)
+
+
+class NonRootContractCheckTest(unittest.TestCase):
+    """Review P2-3: contract content checks must run for non-ROOT roots."""
+
+    def _make_fixture_root(self, tmp: Path) -> Path:
+        (tmp / "docs" / "governance" / "contracts").mkdir(parents=True)
+        shutil.copyfile(GS_DOC, tmp / GS_DECISION_DOC)
+        shutil.copyfile(
+            ROOT / "docs" / "governance" / "contracts" / GS_CONTRACT_FILES["gs-qualification"],
+            tmp / "docs" / "governance" / "contracts" / GS_CONTRACT_FILES["gs-qualification"],
+        )
+        return tmp
+
+    def test_clean_fixture_root_passes(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            errors, warnings = check_growth_support_governance_docs(self._make_fixture_root(Path(tmp)))
+        self.assertEqual(errors, [], f"clean fixture must pass: {errors}")
+        self.assertEqual(warnings, [])
+
+    def test_tampered_route_decision_is_detected_outside_root(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = self._make_fixture_root(Path(tmp))
+            path = root / "docs" / "governance" / "contracts" / GS_CONTRACT_FILES["gs-qualification"]
+            data = json.loads(path.read_text(encoding="utf-8"))
+            data["route_decision"]["preselected"] = True
+            path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+            errors, _ = check_growth_support_governance_docs(root)
+        self.assertTrue(any("preselected" in e for e in errors), f"{errors}")
+
+    def test_tampered_negative_example_is_detected_outside_root(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = self._make_fixture_root(Path(tmp))
+            path = root / "docs" / "governance" / "contracts" / GS_CONTRACT_FILES["gs-qualification"]
+            data = json.loads(path.read_text(encoding="utf-8"))
+            data["negative_examples"][0]["expected_rule_ids"] = []
+            path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+            errors, _ = check_growth_support_governance_docs(root)
+        self.assertTrue(any("negative example" in e for e in errors), f"{errors}")
+
+    def test_missing_contract_outside_root_is_reported(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = self._make_fixture_root(Path(tmp))
+            (root / "docs" / "governance" / "contracts" / GS_CONTRACT_FILES["gs-qualification"]).unlink()
+            errors, _ = check_growth_support_governance_docs(root)
+        self.assertTrue(any("missing" in e for e in errors), f"{errors}")
 
 
 if __name__ == "__main__":

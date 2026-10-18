@@ -271,16 +271,16 @@ def load_gs_contract(name: str):
     return data, errors
 
 
-def validate_release_decision_record(record: dict) -> list[str]:
-    """Validate one release/qualification decision record against GS-01…GS-06.
+def _validate_release_decision_record_with(
+    contract: dict, record: dict, errors: list[str]
+) -> list[str]:
+    """GS-01…GS-06 cross-field rules for one record against ``contract``.
 
-    Encodes the executable positive/negative acceptance criteria of Issue #11:
-    release eligibility evidence (GS-01), AI-consistency never yields approval
-    (GS-02), auditable revocation (GS-03), evaluable persona version updates
-    that never rewrite runtime behaviour directly (GS-04), unreviewed-content
-    rejection (GS-05) and the two data boundaries (GS-06).
+    Split from :func:`validate_release_decision_record` so contract fixtures
+    under a caller-provided root are validated against their own embedded
+    schema instead of silently falling back to the ROOT contract (review
+    P2-3). ``errors`` is extended in place and returned.
     """
-    contract, errors = load_gs_contract("gs-qualification")
     validate_with_embedded_schema(record, contract, errors, "release_decision_record")
     status = record.get("decision_status")
     origin = record.get("review_origin")
@@ -298,29 +298,31 @@ def validate_release_decision_record(record: dict) -> list[str]:
                 "GS-05: approved requires technical_validation=passed and "
                 "scientific_appraisal=done; unreviewed content must stay pending"
             )
-    if origin in NON_HUMAN_REVIEW_ORIGINS and status != "pending":
+    if status != "pending" and origin not in HUMAN_REVIEW_ORIGINS:
         errors.append(
-            "GS-02: ai_draft/multi_model_consistent review origin can never reach "
-            "approved or revoked; AI consistency is not human gold (AGENTS #18, LT-03/LT-04)"
+            "GS-02: approved/revoked records require a human review origin "
+            "(single_human/independent_double_human/adjudicated_human); ai_draft, "
+            "multi_model_consistent and unmarked (null) origins can never reach "
+            "approved or revoked — AI consistency is not human gold (AGENTS #18, LT-03/LT-04)"
         )
     if status == "revoked":
         if not record.get("revoked_reason") or not record.get("revoked_date"):
             errors.append("GS-03: revoked requires revoked_reason and revoked_date")
         if not record.get("decision_record_ref"):
             errors.append("GS-03: revoked requires decision_record_ref for the audit trail")
-    if (
-        record.get("asset_kind") == "interaction_profile"
-        and isinstance(record.get("revision"), int)
-        and record["revision"] > 1
-    ):
+    if record.get("asset_kind") == "interaction_profile":
+        # Persona/expression is an evaluable versioned asset at *every*
+        # revision: revision 1 must not bypass evaluation refs or the
+        # versioned-release effect (review P1-1).
         if not record.get("evaluation_refs") or not record.get("basis_refs"):
             errors.append(
-                "GS-04: interaction_profile version update requires basis_refs and evaluation_refs"
+                "GS-04: interaction_profile records (any revision) require "
+                "basis_refs and evaluation_refs"
             )
         if record.get("runtime_effect") != "new_version_release":
             errors.append(
-                "GS-04: interaction_profile updates take effect only as a new version "
-                "release, never as an immediate runtime rewrite"
+                "GS-04: interaction_profile takes effect only as a new version "
+                "release, never as an immediate runtime rewrite (any revision)"
             )
     boundary = record.get("data_boundary")
     if boundary == "research_library" and record.get("subject_ref") is not None:
@@ -334,21 +336,44 @@ def validate_release_decision_record(record: dict) -> list[str]:
     return errors
 
 
+def validate_release_decision_record(record: dict) -> list[str]:
+    """Validate one release/qualification decision record against GS-01…GS-06.
+
+    Encodes the executable positive/negative acceptance criteria of Issue #11:
+    release eligibility evidence (GS-01), a human review origin required for
+    approved/revoked so AI consistency and unmarked origins can never qualify
+    (GS-02), auditable revocation (GS-03), persona/expression assets that are
+    evaluable and version-released at every revision (GS-04),
+    unreviewed-content rejection (GS-05) and the two data boundaries (GS-06).
+
+    Single-record scope, registered as contract ``known_limitations``:
+    append-only revocation and version-chain immutability require cross-record
+    audits owned by later implementation tasks (#12/#14/#15/#16); passing this
+    validator does not prove version-chain integrity.
+    """
+    contract, errors = load_gs_contract("gs-qualification")
+    return _validate_release_decision_record_with(contract, record, errors)
+
+
 def _gs_rule_ids(error_list: list[str]) -> list[str]:
     return sorted({e.split(":", 1)[0] for e in error_list if e.startswith("GS-")})
 
 
 def check_gs_contract_examples(contract: dict) -> list[str]:
     """Validate positive examples (must pass) and negative examples (must fail
-    with exactly the declared GS rule ids) of the qualification contract."""
+    with exactly the declared GS rule ids) of the qualification contract.
+
+    Uses the provided contract's own embedded schema and rules so fixture
+    contracts under a non-ROOT root are checked against themselves.
+    """
     errors: list[str] = []
     for ex in contract.get("positive_examples", []):
-        found = validate_release_decision_record(ex)
+        found = _validate_release_decision_record_with(contract, ex, [])
         if found:
             errors.append(f"positive example {ex.get('record_id')!r}: {found}")
     for ex in contract.get("negative_examples", []):
         record = ex.get("record", {})
-        found = validate_release_decision_record(record)
+        found = _validate_release_decision_record_with(contract, record, [])
         got = _gs_rule_ids(found)
         expected = sorted(ex.get("expected_rule_ids", []))
         if got != expected:
@@ -579,6 +604,11 @@ def check_growth_support_governance_docs(root: Path | None = None) -> tuple[list
     the six separation dimensions, registers the pending decisions for #2/#10
     with their original semantics preserved, and that the machine-checkable
     contract examples stay consistent with the GS rules.
+
+    The contract *content* checks (envelope, register, dimensions, families,
+    known limitations, positive/negative examples) run for every ``root``;
+    fixture roots get their contract validated against its own embedded data
+    instead of being silently skipped (review P2-3).
     """
     root = root or ROOT
     errors: list[str] = []
@@ -625,32 +655,60 @@ def check_growth_support_governance_docs(root: Path | None = None) -> tuple[list
         errors.append(f"contracts: missing {GS_CONTRACT_FILES['gs-qualification']}")
         return errors, warnings
 
+    # Contract content is checked for *every* root (review P2-3: no silent
+    # skip); only the ROOT loader-based envelope needs the ROOT layout.
+    envelope_errors: list[str] = []
     if root == ROOT:
         contract, cerr = load_gs_contract("gs-qualification")
-        for e in cerr:
-            errors.append(f"{GS_CONTRACT_FILES['gs-qualification']}: {e}")
-        if not cerr:
-            route_decision = contract.get("route_decision", {})
-            if route_decision.get("preselected") is not False:
-                errors.append("gs-qualification: AI review trial route must not be preselected")
-            if route_decision.get("status") != "pending_human_decision":
-                errors.append("gs-qualification: route decision must be pending_human_decision")
-            pending = contract.get("pending_decisions", [])
-            ids = [d.get("decision_id") for d in pending]
-            if sorted(ids) != ["GS-D1", "GS-D2", "GS-D3", "GS-D4"]:
-                errors.append(f"gs-qualification: pending decision register must be GS-D1..D4, got {ids}")
-            if any(d.get("status") != "pending_human_decision" for d in pending):
-                errors.append("gs-qualification: all registered decisions must stay pending_human_decision")
-            dims = [d.get("id") for d in contract.get("separation_dimensions", [])]
-            if sorted(dims) != sorted(GS_SEPARATION_DIMENSION_IDS):
-                errors.append(f"gs-qualification: separation dimensions mismatch, got {dims}")
-            families = contract.get("review_origin_families", {})
-            human = set(families.get("human", []))
-            non_human = set(families.get("non_human", []))
-            if human != set(HUMAN_REVIEW_ORIGINS) or non_human != set(NON_HUMAN_REVIEW_ORIGINS):
-                errors.append("gs-qualification: review origin families do not match the declared values")
-            if human & non_human:
-                errors.append("gs-qualification: human and non-human review origins overlap")
-            errors.extend(check_gs_contract_examples(contract))
+        envelope_errors.extend(cerr)
+    else:
+        contract = load_json(contract_path)
+        if not isinstance(contract, dict):
+            envelope_errors.append("contract root is not an object")
+        else:
+            if contract.get("$schema_version") != 1:
+                envelope_errors.append(
+                    f"unsupported $schema_version {contract.get('$schema_version')!r}"
+                )
+            if not contract.get("$schema_name", "").startswith("childevidence-gsgov-"):
+                envelope_errors.append(f"unexpected $schema_name {contract.get('$schema_name')!r}")
+            if "pending human decision" not in contract.get("status", ""):
+                envelope_errors.append("status must declare 'pending human decision'")
+    for e in envelope_errors:
+        errors.append(f"{GS_CONTRACT_FILES['gs-qualification']}: {e}")
+    if isinstance(contract, dict):
+        _check_gs_contract_content(contract, errors)
 
     return errors, warnings
+
+
+def _check_gs_contract_content(contract: dict, errors: list[str]) -> None:
+    """Contract-level consistency checks shared by ROOT and fixture roots."""
+    route_decision = contract.get("route_decision", {})
+    if route_decision.get("preselected") is not False:
+        errors.append("gs-qualification: AI review trial route must not be preselected")
+    if route_decision.get("status") != "pending_human_decision":
+        errors.append("gs-qualification: route decision must be pending_human_decision")
+    pending = contract.get("pending_decisions", [])
+    ids = [d.get("decision_id") for d in pending]
+    if sorted(ids) != ["GS-D1", "GS-D2", "GS-D3", "GS-D4"]:
+        errors.append(f"gs-qualification: pending decision register must be GS-D1..D4, got {ids}")
+    if any(d.get("status") != "pending_human_decision" for d in pending):
+        errors.append("gs-qualification: all registered decisions must stay pending_human_decision")
+    dims = [d.get("id") for d in contract.get("separation_dimensions", [])]
+    if sorted(dims) != sorted(GS_SEPARATION_DIMENSION_IDS):
+        errors.append(f"gs-qualification: separation dimensions mismatch, got {dims}")
+    families = contract.get("review_origin_families", {})
+    human = set(families.get("human", []))
+    non_human = set(families.get("non_human", []))
+    if human != set(HUMAN_REVIEW_ORIGINS) or non_human != set(NON_HUMAN_REVIEW_ORIGINS):
+        errors.append("gs-qualification: review origin families do not match the declared values")
+    if human & non_human:
+        errors.append("gs-qualification: human and non-human review origins overlap")
+    limitations = {lim.get("id") for lim in contract.get("known_limitations", [])}
+    if "GS-LIM-01" not in limitations or "GS-LIM-02" not in limitations:
+        errors.append(
+            "gs-qualification: known_limitations must register GS-LIM-01 "
+            "(cross-record semantics) and GS-LIM-02 (decision_record_ref scope)"
+        )
+    errors.extend(check_gs_contract_examples(contract))
