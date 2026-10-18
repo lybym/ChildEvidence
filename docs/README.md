@@ -19,6 +19,7 @@
 
 - [Evidence/Claim 领域模型（#14）](evidence/EVIDENCE-MODEL.md)：科研语义层对象、严格校验入口、增量迁移与 #10 映射；不声称科研结论或发布资格。
 - [专业资产领域模型（#15）](assets/ASSET-MODEL.md)：Strategy/SupportMethod/InteractionProfile/EvaluationCase、公共信封与 GS-04 人格版本规则、增量迁移与最小合成 demo 链；不声称科研结论、教育有效性或发布资格。
+- [最小私有专业能力包与撤回机制（#16）](publish/PACK-MODEL.md)：字段白名单发布器、全量不可变快照、差异报告、原子激活与独立撤回账本；内容哈希与发布者认证分开，不声称发布资格或真实批准。
 - [CE-02 人工盲法复核](review/CE-02-ANNOTATION-PLAN.md)：工具与人工执行分开验收。
 - [CE-03 受控解析](parsing/README.md)：文档加工与科研证据语义分开。
 - [AI Reviewer 使用](../.agents/skills/child-evidence-reviewer/references/usage.md)：科研生产 Skill，不是儿童交互插件。
