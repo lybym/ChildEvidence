@@ -26,7 +26,8 @@ ChildEvidence 的目标是让更多儿童获得持续学习、相互协调的专
 | CE-03 | 解析已实现；历史 10 份 E2E 为 9 ok / 1 degraded，定位准确率未验证 |
 | AI Reviewer 与模型权限登记 | 已实现生产侧工具；`POLICY_ACTIVE=False`，不是儿童交互插件 |
 | 真实首篇科研审查 | [#10](https://github.com/lybym/ChildEvidence/issues/10) 尚未闭环，需满足授权、输入与模型身份条件 |
-| Evidence/Claim、方法/人格资产、发布器、DSH 插件和云端查询 | 规划中，未部署 |
+| Evidence/Claim 领域模型与严格校验（[#14](https://github.com/lybym/ChildEvidence/issues/14)） | 领域模型、增量迁移与严格校验入口已实现；科研语义层尚无获准内容记录，未部署 |
+| 方法/人格资产、发布器、DSH 插件和云端查询 | 规划中，未部署 |
 
 最近一次既有工程回归为 **237 项测试通过＋离线冒烟通过**。历史文档中的 44/185/231 项是各自交付时点的数量；工程测试不证明科研结论、插件专业行为或教育效果成立。
 
@@ -35,6 +36,7 @@ ChildEvidence 的目标是让更多儿童获得持续学习、相互协调的专
 - [专业资产、统一接口与成长记录](docs/design/growth-support-mvp/contracts.md)
 - [两次互动的完整合成样例](docs/design/growth-support-mvp/walkthrough.md)
 - [验收与分阶段路线](docs/design/growth-support-mvp/delivery-plan.md)
+- [Evidence/Claim 领域模型（Issue #14）](docs/evidence/EVIDENCE-MODEL.md)
 - [Issue 执行索引](docs/roadmap/growth-support-issues.md)
 - [治理衔接清单](docs/governance/GROWTH-SUPPORT-TRANSITION.md)及[文档导航](docs/README.md)
 

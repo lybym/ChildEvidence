@@ -27,4 +27,4 @@ package-dir = { "" = "src" }
 where = ["src"]
 
 [tool.setuptools.package-data]
-research_library = ["py.typed"]
+research_library = ["py.typed", "contracts/evidence/*.schema.json"]

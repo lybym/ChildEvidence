@@ -1,0 +1,16 @@
+{
+  "$id": "childevidence:evidence:research-question:1",
+  "title": "Evidence research question (RQ registry entry)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "rq_id", "statement", "version"],
+  "properties": {
+    "schema_version": {"type": "string", "const": "ce.evidence/1"},
+    "rq_id": {"type": "string", "pattern": "^rq-[A-Za-z0-9][A-Za-z0-9_.-]{2,61}$"},
+    "statement": {"type": "string", "minLength": 1, "maxLength": 2000},
+    "version": {"type": "integer", "minimum": 1, "maximum": 1000000},
+    "status": {"type": "string", "enum": ["active", "retired"]},
+    "created_at": {"type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$"},
+    "notes": {"type": ["string", "null"], "maxLength": 2000}
+  }
+}

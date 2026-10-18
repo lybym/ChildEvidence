@@ -1,0 +1,16 @@
+{
+  "$id": "childevidence:evidence:locator-check:1",
+  "title": "Locator check (append-only verification event; bbox detection never counts as verified)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "check_id", "version_id", "method", "result"],
+  "properties": {
+    "schema_version": {"type": "string", "const": "ce.evidence/1"},
+    "check_id": {"type": "string", "pattern": "^lc-[A-Za-z0-9][A-Za-z0-9_.-]{2,61}$"},
+    "version_id": {"type": "string", "pattern": "^sv-[A-Za-z0-9][A-Za-z0-9_.-]{2,77}$"},
+    "method": {"type": "string", "pattern": "^[a-z0-9_-]{2,100}$"},
+    "result": {"type": "string", "enum": ["verified", "failed", "detected"]},
+    "details": {"type": ["string", "null"], "maxLength": 2000},
+    "created_at": {"type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$"}
+  }
+}

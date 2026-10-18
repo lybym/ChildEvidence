@@ -1,0 +1,14 @@
+{
+  "$id": "childevidence:evidence:study-report:1",
+  "title": "Study report link (same study may have multiple reports/works)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "study_id", "work_id"],
+  "properties": {
+    "schema_version": {"type": "string", "const": "ce.evidence/1"},
+    "study_id": {"type": "string", "pattern": "^st-[A-Za-z0-9][A-Za-z0-9_.-]{2,61}$"},
+    "work_id": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{2,63}$"},
+    "report_role": {"type": ["string", "null"], "enum": ["primary", "secondary", "replication", null]},
+    "created_at": {"type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$"}
+  }
+}
