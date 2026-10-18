@@ -1,6 +1,6 @@
 # ChildEvidence 成长支持插件：产品与 MVP 设计草案
 
-> 状态：DRAFT v0.2，2026-10-17。产品方向已对齐，进入 Issue-first 规划；接口与具体技术选择仍待验证，不是已实现功能、科研规程批准或发布授权。
+> 状态：DRAFT v0.3，2026-10-18。产品方向已对齐，进入 Issue-first 规划；接口与具体技术选择仍待验证，不是已实现功能、科研规程批准或发布授权。v0.3 仅按 Issue #12 交付同步 §4 两处能力现状行，不修改产品范围与任何门禁。
 > 核验基线：ChildEvidence 本地及 GitHub `master` 均为 `57b309e91610449ea8025099f414e325e7b70e10`。
 > 本设计不修改现行访问门禁，不代签科研批准，不包含真实儿童个人信息或科研原文。
 
@@ -58,8 +58,8 @@ MVP 不交付完整义务教育课程库、全量儿童测评系统、专业诊�
 | CE-01R | [批准清单](../../governance/CE-01R-CHECKLIST.md)、[Issue #1](https://github.com/lybym/ChildEvidence/issues/1)、PR #4 | 修订准备已完成；清单仍未签署，四份规程仍为 DRAFT v1.1 |
 | CE-02 盲法工具 | [annotation.py](../../../src/research_library/annotation.py)、[计划](../../review/CE-02-ANNOTATION-PLAN.md)、[Issue #2](https://github.com/lybym/ChildEvidence/issues/2)、PR #5 | 工具已实现，Issue 仍 OPEN；不能据此声称 80 篇人工复核已完成。既往审计提出的签署/多人分歧问题应单独复现修复 |
 | CE-03 PDF 解析 | [parsing](../../../src/research_library/parsing)、[历史 E2E](../../parsing/poc10-e2e-report.md)、[Issue #3](https://github.com/lybym/ChildEvidence/issues/3)、PR #6 | 已实现；历史报告 10 份中 9 ok、1 degraded，定位准确率未测。本轮未重跑真实 PDF，不将坐标存在率当准确率 |
-| AI Reviewer | [Skill](../../../.agents/skills/child-evidence-reviewer/SKILL.md)、[结果契约](../../../.agents/skills/child-evidence-reviewer/schemas/review-result.schema.json)、PR #7 | 科研生产侧能力，不是儿童交互插件；当前契约固定请求 Astra，仍需拆出 Harness 无关核心 |
-| 模型访问登记 | [model_access.py](../../../src/research_library/model_access.py)、[说明](../../review/MODEL-ACCESS.md)、PR #8/#9 | `POLICY_ACTIVE=False`；登记与最小包代码存在，不等于当前获准向模型提供原文 |
+| AI Reviewer | [Skill](../../../.agents/skills/child-evidence-reviewer/SKILL.md)、[结果契约](../../../.agents/skills/child-evidence-reviewer/schemas/review-result.schema.json)、PR #7 | 科研生产侧能力，不是儿童交互插件；Issue #12 后契约核心已拆出为 Harness 无关模块（`research_library.review_contract`，requested/actual model 分离、execution_kind 按实际宿主记录），旧结果格式保留；激活门禁未变 |
+| 模型访问登记 | [model_access.py](../../../src/research_library/model_access.py)、[说明](../../review/MODEL-ACCESS.md)、PR #8/#9 | `POLICY_ACTIVE=False`；Issue #12 后获准包与 Reviewer 的核实链路（`model_access_package` 来源）已实现，仍未激活，不等于当前获准向模型提供原文 |
 | 真实科研 Pilot | [Issue #10](https://github.com/lybym/ChildEvidence/issues/10) | OPEN，要求获准首篇、可信模型身份与来源定位；不授权批量处理或知识发布 |
 | 知识包、专业方法、人格资产、插件 | [README 路线图](../../../README.md)、源码目录核对 | 尚未实现；本设计不能把草案或已有文献导出当成可供儿童使用的知识包 |
 
@@ -77,3 +77,4 @@ MVP 不交付完整义务教育课程库、全量儿童测评系统、专业诊�
 
 - v0.1：首次形成五份设计草案和合成样例，未创建 Issue。
 - v0.2：按用户授权同步 README、文档导航、治理衔接及 Issue-first 执行索引。没有把待验证方案或科研规则自动改为 Accepted/生效。
+- v0.3：Issue #12 交付后同步 §4 中 AI Reviewer 与模型访问登记两行现状（契约核心已 Harness 无关化、包↔Reviewer 核实链路已实现但未激活）；产品范围、路线与门禁均未改动。

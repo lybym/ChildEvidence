@@ -2,16 +2,16 @@
 name: child-evidence-reviewer
 description: 手动审查 ChildEvidence 指定文献或 AI 审查草稿，提供筛选、方法评价、证据核对、反证和一致性审计。只读输入并输出可追溯的 silver 提案；不用于人工标注、Gold 签署、改库或知识发布。
 metadata:
-  version: "0.1.0"
+  version: "0.2.0"
 ---
 
 # ChildEvidence AI 科研审查
 
-仅响应显式 `$child-evidence-reviewer` 调用。以当前 Codex 会话执行，不启动模型 API、服务、定时任务或流水线。希望使用 GPT-6 Astra 时，先核实会话提供的模型身份；无法核实则记录 `unknown` 并提示，不能把用户指定模型写成实际模型。没有可核验 snapshot 就写 null；不要寻找密钥或把 ChatGPT 订阅当作 API 额度。
+仅响应显式 `$child-evidence-reviewer` 调用。在当前模型会话内执行，不启动模型 API、服务、定时任务或流水线；结果契约按实际宿主记录 `execution_kind`（`codex_session` 或 `harness_session`），不用平台名称泛化授权。希望使用 GPT-6 Astra 或其他模型时，先核实会话提供的模型身份；无法核实则记录 `unknown` 并提示，不能把用户指定模型写成实际模型；`requested_model_id` 如实记录本次请求的目标。没有可核验 snapshot 就写 null；不要寻找密钥或把 ChatGPT 订阅当作 API 额度。
 
 ## 开始前
 
-指定 Work 的权限登记与最小包预检见 [MODEL-ACCESS](../../../../docs/review/MODEL-ACCESS.md)。每次正文审查先在本地运行 `python -m research_library.model_access prepare`，自动复核 Work/PDF/衍生文本哈希、范围与环境并留审计。CE-POL-01 当前未生效，预检仍 blocked；不要读取生成候选文本或修改 provenance 放行。缺少登记时保持 blocked。此步骤不替代下述现行 preflight。
+指定 Work 的权限登记与最小包预检见 [MODEL-ACCESS](../../../../docs/review/MODEL-ACCESS.md)。每次正文审查先在本地运行 `python -m research_library.model_access prepare`，自动复核 Work/PDF/衍生文本哈希、范围与环境并留审计。CE-POL-01 当前未生效，预检仍 blocked；不要读取生成候选文本或修改 provenance 放行。缺少登记时保持 blocked。此步骤不替代下述现行 preflight。获准包（`model_access_package` 来源）由校验器在验证时对照登记表与审计完整复核，并要求预检时门禁处于激活状态；校验器业务核心位于 `research_library.review_contract`，本 Skill 脚本只做薄适配。
 
 1. 在项目根读取 AGENTS.md、四份根科研规程、相关 CE-01R 契约。当前是 **DRAFT v1.1，未生效**；仅作为待批准的评价参考。冻结文件哈希不代表签署，不修改清单或规程。CE-02 人工通道与 CE-03 解析接口分别见 `docs/review/CE-02-ANNOTATION-PLAN.md`、`docs/parsing/README.md`。
 2. 限定本次模式和输入：work_id、本地 PDF、现有 Docling JSON、RQ 的明确版本、指定 blinded 条目或 EvidenceCard 草稿。只读指定对象，不遍历全库；缺少范围时先请求明确范围。馆藏与 RQ 决策分离；RQ 未批准/缺版本时只给 unresolved 草稿。
@@ -40,7 +40,7 @@ metadata:
 
 按 [使用说明](references/usage.md) 写候选 JSON 与 provenance，运行标准库 [validate_review.py](scripts/validate_review.py) 校验并 finalize。默认创建 `data/review/ai-review/<run_id>/`，目录必须全新：`review.json`、`review.md`、`provenance.json`、`validation.json`。每次重审用新 run_id，可在 scope 中注明旧 run，不能覆盖历史。
 
-记录真实模型身份/是否实际发生模型审查、skill/protocol 版本与文件哈希、输入 SHA-256、来源定位、未决状态及输出哈希。结构/本地文本匹配不等于原 PDF 或 DOI 的真实性验证；不能把 Docling `localization.verified=false` 自动改成 true。最终对用户说明实际读了哪些获准来源、哪些未能核验、是否实际调用 Astra。
+记录真实模型身份/是否实际发生模型审查、skill/protocol 版本与文件哈希、输入 SHA-256、来源定位、未决状态及输出哈希。结构/本地文本匹配不等于原 PDF 或 DOI 的真实性验证；不能把 Docling `localization.verified=false` 自动改成 true。最终对用户说明实际读了哪些获准来源、哪些未能核验、是否实际调用了所请求的模型。
 
 Work身份必须与选定SQLite来源的internal_id一致；blinded queue/sample、Docling document_id和文件名不自动成为Work。模型审查的所有引用与Pass原始引用必须来自预检放行且声明实际入模型的来源；blocked标签不能豁免禁传引用。本地确定性匹配不伪装模型审查。
 

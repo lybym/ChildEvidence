@@ -110,7 +110,11 @@
       "const": "ai_model"
     },
     "requested_model_id": {
-      "const": "gpt-6-astra"
+      "type": [
+        "string",
+        "null"
+      ],
+      "minLength": 1
     },
     "model_id": {
       "type": [
@@ -141,11 +145,13 @@
       "type": "string",
       "enum": [
         "codex_session",
+        "harness_session",
         "deterministic_demo"
       ]
     },
     "skill_version": {
-      "const": "0.1.0"
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$"
     },
     "protocol_version": {
       "const": "DRAFT v1.1"

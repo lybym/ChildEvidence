@@ -31,7 +31,7 @@ preflight 只打印路径、选择器、SHA、许可/政策结果，不打印标
 
 `schemas/review-result.schema.json` 为 Draft 2020-12 独立 JSON Schema。五模式统一 envelope：
 
-- `requested_model_id=gpt-6-astra` 是期望；`model_id/model_version` 是实际已核实值，否则 null。`model_identity_status=verified` 需要 provenance 中会话配置的 `model_identity_evidence`；unknown 不发明 ID；没有模型审查时 not_called、model_review_performed=false、execution_kind=deterministic_demo。
+- `requested_model_id` 如实记录本次请求的模型（可以是 `gpt-6-astra` 或其他已确认目标；确定性演示为 null）；`model_id/model_version` 是实际已核实值，否则 null。`model_identity_status=verified` 需要 provenance 中会话配置的 `model_identity_evidence`；unknown 不发明 ID；没有模型审查时 not_called、model_review_performed=false、execution_kind=deterministic_demo。有模型审查时 execution_kind 按实际宿主记录 `codex_session` 或 `harness_session`。声明 `model_access_package` 来源时，requested/actual model 与包内绑定必须一致。
 - `reviewer_type=ai_model`、label_tier=silver、maturity_level=L0、human_review_status=not_reviewed、allowed_for_agent_release=false 为常量；schema 拒绝 Gold、人类来源和未知字段。
 - scope 分 catalog/review，review 必须明确 RQ 来源、版本和状态。screen 只用原标注建议词表/理由码；其他模式 recommendation=not_assessed。所有结果保留 DRAFT 未生效状态。
 - scope.work_ids 必须恰好对应此次 sqlite_metadata 来源的实际 internal_id，不能改成无关 Work 或漏记/重复。blinded 的 queue_id/sample_id 分别记录在来源 object_id/sample_id，均不自动等同 Work_ID；Docling 可核实的 document_id 只记录 document 身份，不能从文件名/文档ID推断 Work。只有PDF或blinded等输入时 work_ids=[]；需要与 Work 绑定时另加所选SQLite元数据来源。
@@ -69,7 +69,7 @@ python $tool demo --mode challenge --source <existing-evidence-card-file> --kind
 python $tool demo --mode audit --source <existing-review.json> --kind review
 ```
 
-demo 只做本地读取白名单/哈希/政策判断，输出 blocked/unresolved、空 findings、null appraisal，无正确率/召回率。不是 Astra 实审，也没有完成 CE-02 人工任务。使用 schema_errors() 可独立检查 JSON Schema；validate() 还核对 provenance、磁盘来源、模式/身份/分歧和发布隔离。预检、校验均无 HTTP、子进程、API 客户端或写库路径。review.md 是状态摘要，完整事实与引用以 review.json 为准。
+demo 只做本地读取白名单/哈希/政策判断，输出 blocked/unresolved、空 findings、null appraisal，无正确率/召回率。不是真实模型实审，也没有完成 CE-02 人工任务。使用 schema_errors() 可独立检查 JSON Schema；validate() 还核对 provenance、磁盘来源、模式/身份/分歧和发布隔离。预检、校验均无 HTTP、子进程、API 客户端或写库路径。review.md 是状态摘要，完整事实与引用以 review.json 为准。
 
 ## 验证与风险
 

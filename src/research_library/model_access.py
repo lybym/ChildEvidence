@@ -95,12 +95,17 @@ def register(record, directory=None):
     return path
 
 
-def prepare(work_id, pdf, source, scope, spans, mode, environment, model_id=None, directory=None):
+def prepare(work_id, pdf, source, scope, spans, mode, environment, model_id=None,
+            requested_model_id=None, directory=None):
     """Verify every run locally; return paths/hashes only, never source text.
 
     Source is a locally prepared UTF-8 derivative whose exact bytes and allowed
     offsets the owner checked against the PDF. Raw PDF/Docling/review containers
     are not accepted. This is provenance binding, not parser accuracy attestation.
+
+    The requested model (what was asked for) and the actual model identity
+    (what will receive the content, if verifiable) are bound separately; an
+    unverifiable identity stays None (unknown) and never invents an ID.
     """
     if not isinstance(spans, list) or any(not isinstance(s, list) or len(s) != 2 or any(type(n) is not int for n in s) for s in spans):
         spans = []  # Never copy arbitrary supplied content into the audit log.
@@ -108,10 +113,14 @@ def prepare(work_id, pdf, source, scope, spans, mode, environment, model_id=None
     run = uuid4().hex
     result = {"run_id": run, "work_id": work_id, "decision": "blocked", "reason": "invalid_or_unregistered",
               "policy_version": POLICY_VERSION, "mode": mode, "model_id": model_id,
+              "requested_model_id": requested_model_id,
               "environment": environment, "scope": scope, "pdf_sha256": None,
               "source_sha256": None, "ranges": spans, "output_sha256": None,
               "time": datetime.now(timezone.utc).isoformat()}
     try:
+        for identity in (model_id, requested_model_id):
+            if identity is not None and (not isinstance(identity, str) or not identity.strip()):
+                raise ValueError("invalid model identity")
         records = read(directory / "permissions.json")
         if not isinstance(records, list):
             raise ValueError("invalid registry")
@@ -130,8 +139,11 @@ def prepare(work_id, pdf, source, scope, spans, mode, environment, model_id=None
                     raise ValueError("outside allowed scope")
             result["reason"] = "policy_not_active"
             if POLICY_ACTIVE:
-                package = {"work_id": work_id, "pdf_sha256": result["pdf_sha256"], "source_sha256": result["source_sha256"],
-                           "scope": scope, "mode": mode, "source_url": record["source_url"], "rights_basis": record["rights_basis"],
+                package = {"run_id": run, "work_id": work_id, "pdf_sha256": result["pdf_sha256"],
+                           "source_sha256": result["source_sha256"], "scope": scope, "mode": mode,
+                           "environment": environment, "model_id": model_id,
+                           "requested_model_id": requested_model_id,
+                           "source_url": record["source_url"], "rights_basis": record["rights_basis"],
                            "segments": [{"start": a, "end": b, "text": text[a:b]} for a, b in spans]}
                 target = directory / "packages" / run
                 target.mkdir(parents=True, exist_ok=False)
@@ -149,6 +161,78 @@ def prepare(work_id, pdf, source, scope, spans, mode, environment, model_id=None
     return result
 
 
+PACKAGE_FIELDS = {"run_id", "work_id", "pdf_sha256", "source_sha256", "scope", "mode", "environment",
+                  "model_id", "requested_model_id", "source_url", "rights_basis", "segments"}
+
+
+def verify_package(package_path):
+    """Read-only re-verification of a staged package for reviewer consumption.
+
+    Re-checks the package against its own run audit (byte hash, audited
+    selection) and the CURRENT registry (latest decision wins, so a later
+    restricted record revokes earlier access). Raises ValueError on any
+    location, structure, binding, revocation or policy mismatch; never reads
+    or returns segment text. This is the reviewer-side half of the same
+    permission chain that prepare() enforces at build time.
+    """
+    path = Path(package_path).resolve()
+    if path.name != "content.json" or path.parent.parent.name != "packages":
+        raise ValueError("invalid package location")
+    run_id = path.parent.name
+    root = path.parent.parent.parent
+    package = read(path)
+    if not isinstance(package, dict) or set(package) != PACKAGE_FIELDS:
+        raise ValueError("invalid package fields")
+    if package["run_id"] != run_id:
+        raise ValueError("package run id mismatch")
+    for key in ("work_id", "mode", "environment"):
+        if not isinstance(package[key], str) or not package[key].strip():
+            raise ValueError("invalid package binding")
+    for key in ("model_id", "requested_model_id"):
+        if package[key] is not None and (not isinstance(package[key], str) or not package[key].strip()):
+            raise ValueError("invalid package model binding")
+    audit = read(root / "audit" / (run_id + ".json"))
+    if not isinstance(audit, dict) or audit.get("decision") != "allowed" or audit.get("output_sha256") != sha(path):
+        raise ValueError("run audit does not allow this package")
+    for key in ("work_id", "pdf_sha256", "source_sha256", "scope", "mode", "environment", "model_id", "requested_model_id"):
+        if audit.get(key) != package[key]:
+            raise ValueError("package/audit binding mismatch")
+    records = read(root / "permissions.json")
+    if not isinstance(records, list):
+        raise ValueError("invalid registry")
+    for record in records:
+        check_record(record)
+    matches = [r for r in records if r["work_id"] == package["work_id"] and r["pdf_sha256"] == package["pdf_sha256"]]
+    record = matches[-1] if matches else None
+    if not record or record["decision"] != "allowed" or record["policy_version"] != POLICY_VERSION or record["codex_environment"] != package["environment"]:
+        raise ValueError("permission not currently granted for this binding")
+    if package["scope"] not in record["scope"] or package["mode"] not in MODES:
+        raise ValueError("scope or purpose not registered")
+    if package["source_url"] != record["source_url"] or package["rights_basis"] != record["rights_basis"]:
+        raise ValueError("package provenance does not match the registered decision")
+    binding = next((s for s in record["sources"] if s["sha256"] == package["source_sha256"] and s["scope"] == package["scope"]), None)
+    if not binding:
+        raise ValueError("derivative version not registered for this scope")
+    segments = package["segments"]
+    if not isinstance(segments, list) or not segments:
+        raise ValueError("package has no approved segments")
+    for segment in segments:
+        if not isinstance(segment, dict) or set(segment) != {"start", "end", "text"}:
+            raise ValueError("invalid segment")
+        start, end, text = segment["start"], segment["end"], segment["text"]
+        if type(start) is not int or type(end) is not int or not 0 <= start < end or not any(a <= start < end <= b for a, b in binding["ranges"]):
+            raise ValueError("segment outside allowed scope")
+        if not isinstance(text, str) or len(text) != end - start:
+            raise ValueError("segment text does not match its declared offsets")
+    if [[s["start"], s["end"]] for s in segments] != audit.get("ranges"):
+        raise ValueError("package segments do not match the audited selection")
+    return {"run_id": run_id, "work_id": package["work_id"], "pdf_sha256": package["pdf_sha256"],
+            "source_sha256": package["source_sha256"], "scope": package["scope"], "mode": package["mode"],
+            "environment": package["environment"], "model_id": package["model_id"],
+            "requested_model_id": package["requested_model_id"], "source_url": package["source_url"],
+            "rights_basis": package["rights_basis"], "output_sha256": sha(path)}
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     sub = parser.add_subparsers(dest="command", required=True)
@@ -158,13 +242,15 @@ def main(argv=None):
     for name in ("work-id", "pdf", "source", "scope", "mode", "environment", "ranges"):
         prep.add_argument("--" + name, required=True)
     prep.add_argument("--model-id")
+    prep.add_argument("--requested-model-id")
     args = parser.parse_args(argv)
     try:
         if args.command == "register":
             register(read(args.record))
             print('{"registered": true, "egress_enabled": false}')
             return 0
-        result = prepare(args.work_id, args.pdf, args.source, args.scope, read(args.ranges), args.mode, args.environment, args.model_id)
+        result = prepare(args.work_id, args.pdf, args.source, args.scope, read(args.ranges), args.mode,
+                         args.environment, model_id=args.model_id, requested_model_id=args.requested_model_id)
         print(json.dumps(result, ensure_ascii=False))
         return 0 if result["decision"] == "allowed" else 2
     except (OSError, ValueError, TypeError, KeyError):
