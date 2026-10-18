@@ -609,6 +609,26 @@ export function createCore(mergedConfig) {
     if (args.subject_ref !== request.subject_ref || args.session_ref !== request.session_ref) {
       return blockedReceipt(args, 'subject_scope_mismatch')
     }
+
+    // Idempotent replay comes BEFORE the revision gate: an at-least-once
+    // retry of an already-recorded (request_id, action_id) must return the
+    // ORIGINAL receipt even when its expected_revision is now stale. A
+    // replay writes nothing, so the §5 concurrency check keeps protecting
+    // first writes only (round-2 review P2-1; contracts.md §3.5 重试必须幂等).
+    const dedupKey = `${args.request_id}\u0000${args.action_id}`
+    if (request.recordedKeys?.has(dedupKey)) {
+      const existing = (recordsBySubject.get(args.subject_ref) ?? []).find((entry) => entry.dedup_key === dedupKey)
+      calls.push({ kind: 'record', request_id: args.request_id, session_ref: args.session_ref, subject_ref: args.subject_ref, outcome: 'idempotent_replay' })
+      // A replay echoes the ORIGINAL stored receipt; a differing outcome.kind
+      // in the replayed call must not overwrite or contradict it (review P2-3).
+      return receiptResult(args, existing?.receipt.outcome_kind ?? outcome.kind, {
+        success_written: existing?.receipt.success_written ?? false,
+        idempotent: true,
+        record_count_for_subject: (recordsBySubject.get(args.subject_ref) ?? []).length,
+        revision_after: request.state_revision,
+      })
+    }
+
     if (args.expected_revision !== request.state_revision) {
       return blockedReceipt(args, 'revision_conflict')
     }
@@ -624,20 +644,6 @@ export function createCore(mergedConfig) {
       }
       const completed = await delayAbortably(args.delay_ms, signal)
       if (!completed) return blockedReceipt(args, 'aborted', ABORTED_VALIDATION)
-    }
-
-    const dedupKey = `${args.request_id}\u0000${args.action_id}`
-    if (request.recordedKeys?.has(dedupKey)) {
-      const existing = (recordsBySubject.get(args.subject_ref) ?? []).find((entry) => entry.dedup_key === dedupKey)
-      calls.push({ kind: 'record', request_id: args.request_id, session_ref: args.session_ref, subject_ref: args.subject_ref, outcome: 'idempotent_replay' })
-      // A replay echoes the ORIGINAL stored receipt; a differing outcome.kind
-      // in the replayed call must not overwrite or contradict it (review P2-3).
-      return receiptResult(args, existing?.receipt.outcome_kind ?? outcome.kind, {
-        success_written: existing?.receipt.success_written ?? false,
-        idempotent: true,
-        record_count_for_subject: (recordsBySubject.get(args.subject_ref) ?? []).length,
-        revision_after: request.state_revision,
-      })
     }
 
     const success = outcome.kind === 'executed'
@@ -666,17 +672,25 @@ export function createCore(mergedConfig) {
   }
 
   /**
-   * Blocked receipt: reports the caller-attributable truth only. When the
-   * request exists and the subject matches it, the real record count and
-   * revision are included; otherwise the counters are omitted entirely
-   * instead of fabricating zeros (review P2-2).
+   * Blocked receipt: reports the caller-attributable truth only. Counters
+   * are included only when a VERIFIED authorization covers the claimed
+   * subject — a scope that exists, allows `record`, and binds exactly the
+   * subject of the existing request. A self-reported `subject_ref` alone
+   * never attributes (round-2 review P1-1): unauthorized paths omit the
+   * counters entirely instead of disclosing another subject's state. The
+   * top-level fields always satisfy RECORD_RECEIPT_SCHEMA, with `''` for
+   * unclaimed strings (round-2 review P2-2).
    */
   function blockedReceipt(args, code, validationOverride) {
     const requestId = isPlainObject(args) && typeof args.request_id === 'string' ? args.request_id : ''
     const actionId = isPlainObject(args) && typeof args.action_id === 'string' ? args.action_id : ''
     const subjectRef = isPlainObject(args) && typeof args.subject_ref === 'string' ? args.subject_ref : ''
     const request = requestId !== '' ? requests.get(requestId) : undefined
-    const attributable = request !== undefined && subjectRef !== '' && request.subject_ref === subjectRef
+    let attributable = false
+    if (subjectRef !== '' && request !== undefined && request.subject_ref === subjectRef) {
+      const scopeCheck = resolveScope(isPlainObject(args) ? args.authorization_ref : undefined, 'record', requestId)
+      attributable = !scopeCheck.error && scopeCheck.scope.subject_ref === subjectRef
+    }
     const receipt = {
       outcome_kind: 'blocked',
       success_written: false,
@@ -686,15 +700,14 @@ export function createCore(mergedConfig) {
       receipt.record_count_for_subject = (recordsBySubject.get(subjectRef) ?? []).length
       receipt.revision_after = request.state_revision
     }
-    const result = {
+    return {
       schema_version: RECORD_RECEIPT_SCHEMA_VERSION,
       request_id: requestId,
       action_id: actionId,
+      subject_ref: subjectRef,
       receipt,
       validation: validationOverride ?? { ...failedValidation(), failure_code: code },
     }
-    if (subjectRef !== '') result.subject_ref = subjectRef
-    return result
   }
 
   function receiptResult(args, outcomeKind, receipt) {

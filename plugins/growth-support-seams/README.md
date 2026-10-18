@@ -20,7 +20,7 @@ ChildEvidence Issue
 |---|---|
 | `ce_prepare_support` | 校验统一输入 `ce.support-input.draft-0.1`，返回结构化 `SupportResult`（或带失败码的 blocked；升版 `schema_version` 以 `unsupported_schema_version` 拒绝） |
 | `ce_validate_support_proposal` | 校验模型提案：有限动作词表、demo 方法归属、revision 一致、拒绝信号暂停 |
-| `ce_record_support_outcome` | 记录真实回执；`expected_revision` 并发检查（contracts.md §5 宿主写入要求）；按 `(request_id, action_id)` 幂等且重放返回原回执；取消/失败/拒绝不写成功行；不可归属的 blocked 回执省略计数，不伪造零值 |
+| `ce_record_support_outcome` | 记录真实回执；`expected_revision` 并发检查（contracts.md §5 宿主写入要求，仅约束首次写入）；同 `(request_id, action_id)` 重放**即使 `expected_revision` 已过期也返回原存储回执**（contracts.md §3.5 重试必须幂等）；取消/失败/拒绝不写成功行；blocked 回执仅对"已验证且绑定该主体的 scope"携带计数，否则整体省略，不泄露其他主体状态 |
 | `ce_session_audit` | 汇报受控调用轨迹（按宿主 scope 过滤主体）；对未经过受控入口的 request 给出检测提示 |
 
 安全语义（合成实现，对应 contracts.md §2/§5/§6）：

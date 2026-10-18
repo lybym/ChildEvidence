@@ -303,23 +303,31 @@ test('idempotent replay echoes the ORIGINAL outcome, not the replayed claim (rev
   assert.equal(replay.receipt.record_count_for_subject, 1)
 })
 
-test('blocked record receipts report attributable state, never fabricated zeros (review P2-2)', async () => {
+test('blocked record receipts report attributable state, never fabricated zeros (review P2-2, round 2)', async () => {
   const core = makeCore()
   await runHappyPath(core) // revision -> 1, one record row
 
+  // Stale write of an UNRECORDED action: re-validate a second action at the
+  // new revision, then record it with a stale expected_revision.
+  const revalidated = await demoValidate(core, {
+    state_revision: 1,
+    proposal: { action_id: 'demo-action-002', action_kind: 'offer_choice', content: 'demo second action', method_ref: 'demo-method-clarify@1' },
+  })
+  assert.equal(revalidated.status, 'proposal_ready')
   const stale = await core.recordOutcome({
     request_id: 'demo-request-001',
     session_ref: 'demo-session-A',
     subject_ref: 'demo-learner-A',
     authorization_ref: 'demo-host-scope-A',
-    action_id: 'demo-action-001',
+    action_id: 'demo-action-002',
     expected_revision: 0, // stale: request is now at revision 1
     outcome: { kind: 'executed' },
   })
-  assert.equal(stale.validation.failure_code, 'revision_conflict', 'expected_revision mismatch is refused')
+  assert.equal(stale.validation.failure_code, 'revision_conflict', 'expected_revision mismatch is refused for first writes')
   assert.equal(stale.receipt.success_written, false)
   assert.equal(stale.receipt.revision_after, 1, 'real current revision, not a fabricated zero')
   assert.equal(stale.receipt.record_count_for_subject, 1, 'real current record count')
+  assert.deepEqual(validateAgainstSubset(RECORD_RECEIPT_SCHEMA, stale), [], 'blocked receipt violates the receipt schema')
 
   const unknownRequest = await core.recordOutcome({
     request_id: 'demo-request-unknown',
@@ -333,14 +341,9 @@ test('blocked record receipts report attributable state, never fabricated zeros 
   assert.equal(unknownRequest.validation.failure_code, 'prepare_required')
   assert.equal(unknownRequest.receipt.record_count_for_subject, undefined, 'counters omitted when not attributable')
   assert.equal(unknownRequest.receipt.revision_after, undefined, 'revision omitted when not attributable')
+  assert.deepEqual(validateAgainstSubset(RECORD_RECEIPT_SCHEMA, unknownRequest), [])
 
-  // A second action on the same request requires re-validation at the new
-  // revision, then records with expected_revision 1.
-  const revalidated = await demoValidate(core, {
-    state_revision: 1,
-    proposal: { action_id: 'demo-action-002', action_kind: 'offer_choice', content: 'demo second action', method_ref: 'demo-method-clarify@1' },
-  })
-  assert.equal(revalidated.status, 'proposal_ready')
+  // The verified second action then records normally and advances the revision.
   const second = await core.recordOutcome({
     request_id: 'demo-request-001',
     session_ref: 'demo-session-A',
@@ -352,6 +355,97 @@ test('blocked record receipts report attributable state, never fabricated zeros 
   })
   assert.equal(second.receipt.success_written, true)
   assert.equal(second.receipt.revision_after, 2, 'each successful record advances the revision')
+})
+
+test('at-least-once retry: same-args retry of a successful record returns the original receipt (review P2-1, round 2)', async () => {
+  const core = makeCore()
+  const first = await runHappyPath(core) // executed at expected_revision 0, revision -> 1
+  assert.equal(first.receipt.receipt.idempotent, false)
+
+  const retry = await core.recordOutcome({
+    request_id: 'demo-request-001',
+    session_ref: 'demo-session-A',
+    subject_ref: 'demo-learner-A',
+    authorization_ref: 'demo-host-scope-A',
+    action_id: 'demo-action-001',
+    expected_revision: 0, // deliberately stale, exactly the original arguments
+    outcome: { kind: 'executed' },
+  })
+  assert.equal(retry.receipt.idempotent, true, 'same-args retry must be recognized as a replay')
+  assert.equal(retry.receipt.outcome_kind, 'executed')
+  assert.equal(retry.receipt.success_written, true)
+  assert.equal(retry.receipt.record_count_for_subject, 1, 'no duplicate record row')
+  assert.equal(retry.receipt.revision_after, 1, 'replay writes nothing')
+  assert.deepEqual(validateAgainstSubset(RECORD_RECEIPT_SCHEMA, retry), [])
+})
+
+test('unauthorized paths never disclose another subject\u2019s state (round-2 review P1-1)', async () => {
+  const core = makeCore()
+  await runHappyPath(core) // subject A state: 1 record row, revision 1
+
+  const probes = [
+    {
+      label: 'legit scope for another subject',
+      args: {
+        request_id: 'demo-request-001',
+        session_ref: 'demo-session-A',
+        subject_ref: 'demo-learner-A', // claimed, but scope B binds learner-B
+        authorization_ref: 'demo-host-scope-B',
+        action_id: 'demo-action-001',
+        expected_revision: 1,
+        outcome: { kind: 'executed' },
+      },
+      expectedCode: 'subject_scope_mismatch',
+    },
+    {
+      label: 'unknown scope',
+      args: {
+        request_id: 'demo-request-001',
+        session_ref: 'demo-session-A',
+        subject_ref: 'demo-learner-A',
+        authorization_ref: 'demo-host-scope-not-real',
+        action_id: 'demo-action-001',
+        expected_revision: 1,
+        outcome: { kind: 'executed' },
+      },
+      expectedCode: 'unknown_authorization_scope',
+    },
+    {
+      label: 'scope without record capability',
+      args: {
+        request_id: 'demo-request-001',
+        session_ref: 'demo-session-A',
+        subject_ref: 'demo-learner-A',
+        authorization_ref: 'demo-host-scope-A-observer',
+        action_id: 'demo-action-001',
+        expected_revision: 1,
+        outcome: { kind: 'executed' },
+      },
+      expectedCode: 'scope_not_permitted',
+    },
+    {
+      label: 'missing authorization',
+      args: {
+        request_id: 'demo-request-001',
+        session_ref: 'demo-session-A',
+        subject_ref: 'demo-learner-A',
+        authorization_ref: undefined,
+        action_id: 'demo-action-001',
+        expected_revision: 1,
+        outcome: { kind: 'executed' },
+      },
+      expectedCode: 'missing_authorization',
+    },
+  ]
+  for (const probe of probes) {
+    const receipt = await core.recordOutcome(probe.args)
+    assert.equal(receipt.validation.failure_code, probe.expectedCode, probe.label)
+    assert.equal(receipt.receipt.record_count_for_subject, undefined, `${probe.label}: subject-A record count must be omitted`)
+    assert.equal(receipt.receipt.revision_after, undefined, `${probe.label}: subject-A revision must be omitted`)
+    assert.equal(receipt.subject_ref, probe.args.subject_ref, 'top-level subject_ref always present for schema conformance')
+    assert.deepEqual(validateAgainstSubset(RECORD_RECEIPT_SCHEMA, receipt), [], `${probe.label}: receipt must satisfy the receipt schema`)
+  }
+  assert.equal(core._state.recordsBySubject.get('demo-learner-A')?.length ?? 0, 1, 'no probe mutated subject-A state')
 })
 
 test('declined outcome is recorded without a success row (AC2 refusal case)', async () => {
@@ -504,6 +598,8 @@ test('subject isolation: records and audit calls never cross subjects (AC3/E09/E
     outcome: { kind: 'executed' },
   })
   assert.equal(crossSubject.validation.failure_code, 'subject_scope_mismatch')
+  assert.equal(crossSubject.receipt.record_count_for_subject, undefined, 'cross-subject blocked receipt omits subject-A counters')
+  assert.equal(crossSubject.receipt.revision_after, undefined, 'cross-subject blocked receipt omits subject-A revision')
 })
 
 test('E14 tool-miss detection: an orphan request reports zero controlled calls', async () => {

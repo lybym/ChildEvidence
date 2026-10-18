@@ -115,7 +115,7 @@
 
 | 测试 | 命令 | 结果 |
 |---|---|---|
-| Node 自检（24 项，Round 2 起） | `node plugins\growth-support-seams\tests\self-check.mjs` | 24 pass / 0 fail |
+| Node 自检（26 项，Round 3 起） | `node plugins\growth-support-seams\tests\self-check.mjs` | 26 pass / 0 fail |
 | Python 套件（本插件部分） | `python -m unittest tests.test_dsh_seam_plugin`（`PYTHONPATH=src`） | 全部通过（无 Node 环境时行为测试自动 skip，不 fail） |
 | 仓库全量回归 | `python -m unittest discover -s tests`、`python scripts\smoke_offline.py`、`python -m research_library status` | 见 §4 |
 
@@ -194,3 +194,28 @@ unsupported），**因此本验证不声称"强制专业流程成立"**；这两
 - 测试缺口：schema 升版拒绝（`unsupported_schema_version` 专用失败码）、
   异 outcome 重放、record `expected_revision` 并发检查（contracts.md §5
   宿主写入要求）均已实现并有回归测试；Node 自检 20 → 24 项，全绿。
+
+## 8. Round 3（Step 05 第二轮 Review 修复）更新记录
+
+第二轮独立 Review（同一 reviewer，CHANGES_REQUESTED，针对 `97a48b1`）确认
+Round 2 全部修复属实，并发现由该轮修复引入的问题；本轮处理：
+
+- **P1-1（新）**：blocked 回执"可归属"判定此前只核对调用方**自报的
+  subject** 与请求是否一致，未核对调用方 scope 是否绑定该主体——跨主体
+  合法 scope / 未知 scope / 无 record 权限的 observer scope 三条路径都会
+  把其他主体的真实 `record_count_for_subject` 与 `revision_after` 泄露
+  出去（可经宿主工具接缝以合法入参到达），与 contracts.md §5"不同儿童
+  严格隔离"相抵。根因修复：归属判定改为在 `blockedReceipt` 内重新经过
+  `resolveScope` 校验（scope 存在 + 允许 `record` + 绑定所声称主体 + 与
+  请求主体一致），任何一环不通过即整体省略计数。回归测试覆盖全部三条
+  路径与缺失授权，断言计数省略且主体 A 状态零变更。
+- **P2-1（新）**：`expected_revision` 闸门原位于去重重放检查之前，成功
+  记录的同参重试（at-least-once 场景）得到 `revision_conflict` 而非原
+  回执，与 contracts.md §3.5"重试必须幂等"相抵。根因修复：去重重放检查
+  移到 revision 闸门之前（重放不写任何状态，§5 并发检查仅约束首次写入）；
+  原 stale 用例改用未记录过的动作，并新增"同参重试返回原回执"具名用例。
+- **P2-2（轻微）**：args 缺 `subject_ref` 时 blocked 回执违反自身 output
+  schema 的 required。修复：回执顶层字段恒输出（未声明串以 `''` 占位）。
+- 测试缺口：未授权路径计数省略、同参重试具名用例、回执 schema 自洽性
+  校验（每条产出的回执过一遍 `RECORD_RECEIPT_SCHEMA`）均已补齐；
+  Node 自检 24 → 26 项，全绿。
