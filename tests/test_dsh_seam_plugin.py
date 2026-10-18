@@ -193,24 +193,28 @@ class NodeSelfCheckTests(unittest.TestCase):
             0,
             f"node self-check failed:\n{result.stdout[-4000:]}\n{result.stderr[-2000:]}",
         )
-        self.assertIn("pass 20", result.stdout)
+        match = re.search(r"pass (\d+)", result.stdout)
+        self.assertIsNotNone(match, f"self-check summary missing:\n{result.stdout[-2000:]}")
+        self.assertGreaterEqual(int(match.group(1)), 24, "self-check must run its full behavioral suite")
         self.assertIn("fail 0", result.stdout)
 
-    def test_host_schema_validation_against_isolated_profile(self) -> None:
+    def test_host_schema_validation_against_resolvable_dsh_tools(self) -> None:
         profile_dir = os.environ.get("CE_DSH_VERIFY_PROFILE")
-        if not profile_dir:
+        if not profile_dir and not os.environ.get("CE_DSH_TOOLS_LIB"):
             self.skipTest(
-                "CE_DSH_VERIFY_PROFILE not set; live isolated-profile validation is "
-                "performed once per verification run and recorded in docs/verification/"
+                "neither CE_DSH_VERIFY_PROFILE nor CE_DSH_TOOLS_LIB is set; live host-runtime "
+                "validation is performed once per verification run and recorded in docs/verification/ "
+                "(the installed .asar payload is only readable through the host runtime)"
             )
         script = PLUGIN_DIR / "tools" / "validate-with-host.mjs"
-        result = self._run(str(script), profile_dir)
+        result = self._run(str(script), profile_dir or "")
         self.assertEqual(
             result.returncode,
             0,
             f"host validation failed:\n{result.stdout[-4000:]}\n{result.stderr[-2000:]}",
         )
         self.assertIn("ALL HOST-VALIDATION CHECKS PASSED", result.stdout)
+        self.assertIn("dsh-tools version:", result.stdout, "validator provenance must be printed")
 
 
 class VerificationDocsTests(unittest.TestCase):

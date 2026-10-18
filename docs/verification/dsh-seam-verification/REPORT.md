@@ -58,12 +58,22 @@
 两条证据链：
 
 1. **真机 schema 校验**（`plugins/growth-support-seams/tools/validate-with-host.mjs`，
-   用隔离环境可获得的真实 `@deepseek-ai/dsh-tools` 校验器）：
+   用真实 `@deepseek-ai/dsh-tools` 校验器）。**校验器解析规则（Round 2 修复后，
+   版本管理中不再含任何硬编码机器路径）**：显式参数（装有 dsh-tools 的隔离
+   profile 或直接 lib 路径）→ `CE_DSH_TOOLS_LIB` 环境变量 → `$env:LOCALAPPDATA`
+   推导的已安装宿主负载（只读）。**运行时要求**：安装负载位于 `.asar` 归档内，
+   普通 `node` 无法读取（`existsSync` 返回 false——首轮 Review 复现的
+   `dsh-tools not found` 即由此产生），必须通过宿主运行时执行
+   （`$env:ELECTRON_RUN_AS_NODE="1"` + `DeepSeek Harness.exe --expose-internals`，
+   见插件 README）；helper 在全部候选不可用时以 exit 1 输出可操作诊断，
+   不产生假 PASS。
+   实际重跑（Round 2，宿主运行时）：打印 provenance
+   `dsh-tools version: 0.2.1-rc.2`（与宿主包版本一致）；
    `assertSupportedJsonSchema` 对全部 6 份注册用 schema 通过；
    `validateJsonSchemaValue` 对 contracts.md §2.1 的合成示例输入通过；
    伪造 `actor.role` 的负例被拒绝。**8/8 PASS**。
 2. **受控流程行为**（`plugins/growth-support-seams/tests/self-check.mjs`，
-   Node 24，20/20 通过）：完整链路 `prepare → validate → record` 产生
+   Node 24，24/24 通过）：完整链路 `prepare → validate → record` 产生
    `ce.support-result.draft-0.1` 结构化结果（`validation.eligible_for_real_user_delivery`
    恒为 `false`，`provenance.evidence_refs` 恒为空——不虚构研究支持）。
 
@@ -84,7 +94,7 @@
   不写成功记录。宿主契约（源码核验）：body 前中止 `ABORTED_BEFORE_DISPATCH`，
   body 后中止 `ABORTED`，均以结构化错误呈现、不结束回合。
 - 超时：`timeoutMs` 在本版本**仅声明不强制**（宿主 README 明示，强制需组合
-  `@deepseek-ai/dsh-tool-call-timeout-policy`）→ 矩阵 #12 记 unsupported。
+  `@deepseek-ai/dsh-tool-call-timeout-policy`）→ 矩阵 #8 记 unsupported。
   宿主回合级取消传导未实测（无模型凭据）。
 
 ### 2.6 Session 持久化与数据路径（交付范围）
@@ -105,7 +115,7 @@
 
 | 测试 | 命令 | 结果 |
 |---|---|---|
-| Node 自检（20 项） | `node plugins\growth-support-seams\tests\self-check.mjs` | 20 pass / 0 fail |
+| Node 自检（24 项，Round 2 起） | `node plugins\growth-support-seams\tests\self-check.mjs` | 24 pass / 0 fail |
 | Python 套件（本插件部分） | `python -m unittest tests.test_dsh_seam_plugin`（`PYTHONPATH=src`） | 全部通过（无 Node 环境时行为测试自动 skip，不 fail） |
 | 仓库全量回归 | `python -m unittest discover -s tests`、`python scripts\smoke_offline.py`、`python -m research_library status` | 见 §4 |
 
@@ -145,19 +155,42 @@
 **执行中失败及处理：**
 
 - `validate-with-host.mjs` 首次以 profile 目录解析 `dsh-tools` 失败——隔离
-  profile 的 node_modules 只含本插件，宿主包在应用负载内。已改为三段解析
-  （profile → 直接路径 → 已安装应用负载，只读），最终 8/8 通过。
+  profile 的 node_modules 只含本插件，宿主包在应用负载内。Round 1 改为三段
+  解析时误将本机安装负载绝对路径写进版本管理，且文档化命令用普通 `node`
+  执行（读不到 `.asar` 归档，首轮独立 Review 复现 `dsh-tools not found`）。
+  **Round 2 根因修复**：移除硬编码路径，改为"显式参数 → `CE_DSH_TOOLS_LIB`
+  → `$env:LOCALAPPDATA` 推导负载"的运行时解析 + 失败时可操作诊断；文档
+  更正为宿主运行时执行；以 `dsh-tools 0.2.1-rc.2` 重跑，8/8 通过（§2.3）。
 - `--session-id` 首次对从未存在的 id 直接拒绝（宿主语义：只采纳、不创建）；
-  调整为先创建再采纳，两种语义均已验证并记录。
+  调整为先创建再采纳，两种语义均已验证并记录（插件 README §4 已同步更正
+  命令流程）。
+
+## 6. 结论
 
 **与既有约束的一致性**：零第三方运行时依赖保持；未修改持久化 schema；未
 触碰四份 DRAFT 规程、治理门禁、生成快照与既有 Skill；`demo-*` 与真实发布
 资格隔离（GROWTH-SUPPORT-QUALIFICATION §3 共同限制）。
-
-## 6. 结论
 
 在当前安装的 DSH `0.2.1-rc.2` 上，最小插件真实证明了：插件加载/卸载、结构
 化工具注册与校验、协作取消、Session 持久化采纳、数据路径（#1–#5、#7、#9、
 #10，均 supported）。受控入口与最终输出检查在当前版本不可实现（#12/#13
 unsupported），**因此本验证不声称"强制专业流程成立"**；这两项与宿主真实
 身份绑定、真实模型回合行为一起，作为明确宿主依赖移交 #17/#18 承接。
+
+## 7. Round 2（Step 05 Review 修复）更新记录
+
+首轮独立 Review（`lybym-codex-reviewer[bot]`，CHANGES_REQUESTED，针对
+`ed20620`）的全部 findings 已处理，修复后基线：
+
+- P1-1：硬编码绝对路径移除，真机校验证据链以可复现命令重建（§2.3）；
+- P2-1：record 入参 `$id` 改为 `ce.support-record-args.draft-0.1`，不再与
+  回执 `schema_version`（`ce.support-record.draft-0.1`）撞名；
+- P2-2：blocked 回执仅在请求+主体可归属时携带真实计数/revision，否则省略
+  字段（`RECORD_RECEIPT_SCHEMA.receipt.required` 相应收缩）；
+- P2-3：幂等重放返回**原存储回执**的 `outcome_kind`/`success_written`；
+- P2-4：`receipt_dir` 未配置时不注册 exit 兜底监听器；写出卸载回执后立即
+  `removeListener`，重复 apply/dispose 不再累积；
+- P2-5：镜像一致性测试改为双向键集合对比（mirror 侧漂移也会被发现）；
+- 测试缺口：schema 升版拒绝（`unsupported_schema_version` 专用失败码）、
+  异 outcome 重放、record `expected_revision` 并发检查（contracts.md §5
+  宿主写入要求）均已实现并有回归测试；Node 自检 20 → 24 项，全绿。

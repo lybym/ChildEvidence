@@ -18,9 +18,9 @@ ChildEvidence Issue
 
 | 工具 | 作用（对应 contracts.md §3 候选接口） |
 |---|---|
-| `ce_prepare_support` | 校验统一输入 `ce.support-input.draft-0.1`，返回结构化 `SupportResult`（或带失败码的 blocked） |
+| `ce_prepare_support` | 校验统一输入 `ce.support-input.draft-0.1`，返回结构化 `SupportResult`（或带失败码的 blocked；升版 `schema_version` 以 `unsupported_schema_version` 拒绝） |
 | `ce_validate_support_proposal` | 校验模型提案：有限动作词表、demo 方法归属、revision 一致、拒绝信号暂停 |
-| `ce_record_support_outcome` | 记录真实回执；按 `(request_id, action_id)` 幂等；取消/失败/拒绝不写成功行 |
+| `ce_record_support_outcome` | 记录真实回执；`expected_revision` 并发检查（contracts.md §5 宿主写入要求）；按 `(request_id, action_id)` 幂等且重放返回原回执；取消/失败/拒绝不写成功行；不可归属的 blocked 回执省略计数，不伪造零值 |
 | `ce_session_audit` | 汇报受控调用轨迹（按宿主 scope 过滤主体）；对未经过受控入口的 request 给出检测提示 |
 
 安全语义（合成实现，对应 contracts.md §2/§5/§6）：
@@ -75,12 +75,14 @@ headless 一次性任务在插件挂载后运行；隔离 home 中没有模型�
 ### 4. Session 持久化接缝（可选）
 
 ```powershell
-dsh --profile ce-verify --patch C:\CODE\.tmp\ce-seam-patch.yml headless --session-id ce-seam-demo-1 "demo task (synthetic)"
-dsh --profile ce-verify --patch C:\CODE\.tmp\ce-seam-patch.yml headless --session-id ce-seam-demo-1 "demo task again (synthetic)"
-```
+# 第一次运行不带 --session-id：创建默认 session-<uuid> 并持久化
+# （--json 开场事件携带本次使用的 Session 身份）
+dsh --profile ce-verify --patch C:\CODE\.tmp\ce-seam-patch.yml headless --json "demo task (synthetic)"
 
-第二次调用按 `--session-id` 采纳已持久化的 Session（失败于模型阶段前即证明
-采纳成功；未知 id 会直接拒绝）。
+# 用上一步得到的 id 采纳已持久化的 Session（未知 id 会在任务运行前直接拒绝，
+# 因此第二次调用若报模型凭据错误而非 "session does not exist"，即证明采纳成功）
+dsh --profile ce-verify --patch C:\CODE\.tmp\ce-seam-patch.yml headless --session-id <上一步的sessionId> "demo task again (synthetic)"
+```
 
 ### 5. 卸载并验证移除
 
@@ -94,8 +96,8 @@ dsh --profile ce-verify --dump-config         # 不再包含 ce-growth-support-s
 
 ## 离线测试
 
-- Node 自检（受控流程、拒绝路径、unknown 保留、主体隔离、幂等、协作取消、
-  回执；20 项断言）：
+- Node 自检（受控流程、拒绝路径、unknown 保留、主体隔离、幂等与原回执重放、
+  `expected_revision` 并发检查、协作取消、回执与 exit 兜底监听器生命周期）：
 
   ```powershell
   node plugins\growth-support-seams\tests\self-check.mjs
@@ -109,12 +111,28 @@ dsh --profile ce-verify --dump-config         # 不再包含 ce-growth-support-s
   python -m unittest tests.test_dsh_seam_plugin
   ```
 
-- 真机 schema 校验（用隔离 profile 内安装的 `@deepseek-ai/dsh-tools` 真实
-  校验器验证 schema 与 contracts.md §2.1 示例输入）：
+- 真机 schema 校验（用真实 `@deepseek-ai/dsh-tools` 校验器验证 schema 与
+  contracts.md §2.1 示例输入，并打印校验器路径与版本作 provenance）。
+  **注意**：安装的宿主包位于 `.asar` 归档内，普通 `node` 读不到；要么通过
+  宿主运行时执行，要么把 `CE_DSH_TOOLS_LIB` 指向一份解包的 dsh-tools：
 
   ```powershell
-  node plugins\growth-support-seams\tools\validate-with-host.mjs C:\CODE\.tmp\ce-dsh-home\profiles\ce-verify
+  # 方式 A：宿主运行时（可读安装负载，只读不改）
+  $env:ELECTRON_RUN_AS_NODE = "1"
+  & "$env:LOCALAPPDATA\Programs\DeepSeek Harness\DeepSeek Harness.exe" --expose-internals `
+      plugins\growth-support-seams\tools\validate-with-host.mjs
+
+  # 方式 B：普通 node + 显式路径（例如装有 dsh-tools 的隔离 profile）
+  node plugins\growth-support-seams\tools\validate-with-host.mjs <profileDir>
+
+  # 方式 C：普通 node + CE_DSH_TOOLS_LIB 指向解包的 dsh-tools lib/index.js
+  $env:CE_DSH_TOOLS_LIB = "<解包目录>\dsh-tools\lib\index.js"
+  node plugins\growth-support-seams\tools\validate-with-host.mjs
   ```
+
+  解析顺序：显式参数 → `CE_DSH_TOOLS_LIB` → `$env:LOCALAPPDATA` 推导的安装
+  负载（只读）。所有候选都不可用时，helper 以 exit 1 输出上述诊断，不产生
+  假 PASS。
 
 ## 明确不做什么
 

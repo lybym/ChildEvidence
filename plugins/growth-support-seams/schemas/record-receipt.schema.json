@@ -11,7 +11,7 @@
     "subject_ref": { "type": "string" },
     "receipt": {
       "type": "object",
-      "required": ["outcome_kind", "success_written", "idempotent", "record_count_for_subject", "revision_after"],
+      "required": ["outcome_kind", "success_written", "idempotent"],
       "properties": {
         "outcome_kind": { "type": "string" },
         "success_written": { "type": "boolean" },

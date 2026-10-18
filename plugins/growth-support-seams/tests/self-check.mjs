@@ -187,6 +187,7 @@ async function runHappyPath(core) {
     subject_ref: 'demo-learner-A',
     authorization_ref: 'demo-host-scope-A',
     action_id: 'demo-action-001',
+    expected_revision: 0,
     outcome: { kind: 'executed', detail: 'demo receipt' },
   })
   return { prepared, validated, receipt }
@@ -204,7 +205,7 @@ test('plugin module exposes the documented Cordis object shape', () => {
   ])
 })
 
-test('embedded schemas match the shipped schema mirrors exactly', () => {
+test('embedded schemas match the shipped schema mirrors exactly (both directions)', () => {
   const mirrors = [
     [SUPPORT_INPUT_SCHEMA, '../schemas/support-input.schema.json'],
     [SUPPORT_RESULT_SCHEMA, '../schemas/support-result.schema.json'],
@@ -212,9 +213,17 @@ test('embedded schemas match the shipped schema mirrors exactly', () => {
     [RECORD_RECEIPT_SCHEMA, '../schemas/record-receipt.schema.json'],
     [SESSION_AUDIT_SCHEMA, '../schemas/session-audit.schema.json'],
   ]
+  const mirrorOnlyKeys = new Set(['description', '$id'])
   for (const [embedded, relative] of mirrors) {
     const mirror = JSON.parse(readFileSync(new URL(relative, import.meta.url), 'utf8'))
-    for (const key of Object.keys(embedded)) {
+    const embeddedKeys = Object.keys(embedded).filter((key) => !mirrorOnlyKeys.has(key))
+    const mirrorKeys = Object.keys(mirror).filter((key) => !mirrorOnlyKeys.has(key))
+    assert.deepEqual(
+      [...mirrorKeys].sort(),
+      [...embeddedKeys].sort(),
+      `${relative} carries content keys the embedded schema does not have (mirror-only drift)`
+    )
+    for (const key of embeddedKeys) {
       assert.deepEqual(embedded[key], mirror[key], `${relative} key ${key} drifts from the embedded schema`)
     }
     assertSubsetSchema(embedded)
@@ -229,6 +238,7 @@ test('embedded schemas match the shipped schema mirrors exactly', () => {
     recordMirror,
     'record-args.schema.json drifts from the built tool parameters'
   )
+  assert.equal(recordMirror.$id, 'ce.support-record-args.draft-0.1', 'record-args $id must not collide with the receipt schema_version')
 })
 
 test('apply registers the four controlled-flow tools through ctx.tools', () => {
@@ -267,11 +277,81 @@ test('record is idempotent per (request_id, action_id)', async () => {
     subject_ref: 'demo-learner-A',
     authorization_ref: 'demo-host-scope-A',
     action_id: 'demo-action-001',
+    expected_revision: 1,
     outcome: { kind: 'executed' },
   })
   assert.equal(replay.receipt.idempotent, true)
   assert.equal(replay.receipt.success_written, true)
   assert.equal(replay.receipt.record_count_for_subject, 1, 'no duplicate record row')
+})
+
+test('idempotent replay echoes the ORIGINAL outcome, not the replayed claim (review P2-3)', async () => {
+  const core = makeCore()
+  await runHappyPath(core) // executed, success_written true, revision -> 1
+  const replay = await core.recordOutcome({
+    request_id: 'demo-request-001',
+    session_ref: 'demo-session-A',
+    subject_ref: 'demo-learner-A',
+    authorization_ref: 'demo-host-scope-A',
+    action_id: 'demo-action-001',
+    expected_revision: 1,
+    outcome: { kind: 'declined' },
+  })
+  assert.equal(replay.receipt.idempotent, true)
+  assert.equal(replay.receipt.outcome_kind, 'executed', 'replay must return the stored original outcome_kind')
+  assert.equal(replay.receipt.success_written, true, 'replay must return the stored original success_written')
+  assert.equal(replay.receipt.record_count_for_subject, 1)
+})
+
+test('blocked record receipts report attributable state, never fabricated zeros (review P2-2)', async () => {
+  const core = makeCore()
+  await runHappyPath(core) // revision -> 1, one record row
+
+  const stale = await core.recordOutcome({
+    request_id: 'demo-request-001',
+    session_ref: 'demo-session-A',
+    subject_ref: 'demo-learner-A',
+    authorization_ref: 'demo-host-scope-A',
+    action_id: 'demo-action-001',
+    expected_revision: 0, // stale: request is now at revision 1
+    outcome: { kind: 'executed' },
+  })
+  assert.equal(stale.validation.failure_code, 'revision_conflict', 'expected_revision mismatch is refused')
+  assert.equal(stale.receipt.success_written, false)
+  assert.equal(stale.receipt.revision_after, 1, 'real current revision, not a fabricated zero')
+  assert.equal(stale.receipt.record_count_for_subject, 1, 'real current record count')
+
+  const unknownRequest = await core.recordOutcome({
+    request_id: 'demo-request-unknown',
+    session_ref: 'demo-session-A',
+    subject_ref: 'demo-learner-A',
+    authorization_ref: 'demo-host-scope-A',
+    action_id: 'demo-action-001',
+    expected_revision: 0,
+    outcome: { kind: 'executed' },
+  })
+  assert.equal(unknownRequest.validation.failure_code, 'prepare_required')
+  assert.equal(unknownRequest.receipt.record_count_for_subject, undefined, 'counters omitted when not attributable')
+  assert.equal(unknownRequest.receipt.revision_after, undefined, 'revision omitted when not attributable')
+
+  // A second action on the same request requires re-validation at the new
+  // revision, then records with expected_revision 1.
+  const revalidated = await demoValidate(core, {
+    state_revision: 1,
+    proposal: { action_id: 'demo-action-002', action_kind: 'offer_choice', content: 'demo second action', method_ref: 'demo-method-clarify@1' },
+  })
+  assert.equal(revalidated.status, 'proposal_ready')
+  const second = await core.recordOutcome({
+    request_id: 'demo-request-001',
+    session_ref: 'demo-session-A',
+    subject_ref: 'demo-learner-A',
+    authorization_ref: 'demo-host-scope-A',
+    action_id: 'demo-action-002',
+    expected_revision: 1,
+    outcome: { kind: 'executed' },
+  })
+  assert.equal(second.receipt.success_written, true)
+  assert.equal(second.receipt.revision_after, 2, 'each successful record advances the revision')
 })
 
 test('declined outcome is recorded without a success row (AC2 refusal case)', async () => {
@@ -286,6 +366,7 @@ test('declined outcome is recorded without a success row (AC2 refusal case)', as
     subject_ref: 'demo-learner-A',
     authorization_ref: 'demo-host-scope-A',
     action_id: 'demo-action-001',
+    expected_revision: 0,
     outcome: { kind: 'declined', detail: 'demo: child declined the offered choice' },
   })
   assert.equal(declined.receipt.outcome_kind, 'declined')
@@ -304,6 +385,7 @@ test('prior decline pauses the flow before a proposal is stored', async () => {
     subject_ref: 'demo-learner-A',
     authorization_ref: 'demo-host-scope-A',
     action_id: 'demo-action-001',
+    expected_revision: 0,
     outcome: { kind: 'executed' },
   })
   assert.equal(blocked.validation.failure_code, 'unvalidated_outcome', 'paused flow leaves nothing to record')
@@ -389,6 +471,7 @@ test('authorization: self-report never grants access; scopes bind subjects', asy
     subject_ref: 'demo-learner-A',
     authorization_ref: 'demo-host-scope-A-observer',
     action_id: 'demo-action-001',
+    expected_revision: 0,
     outcome: { kind: 'executed' },
   })
   assert.equal(observerValidation(observerRecord), 'scope_not_permitted')
@@ -417,6 +500,7 @@ test('subject isolation: records and audit calls never cross subjects (AC3/E09/E
     subject_ref: 'demo-learner-A',
     authorization_ref: 'demo-host-scope-B',
     action_id: 'demo-action-001',
+    expected_revision: 1,
     outcome: { kind: 'executed' },
   })
   assert.equal(crossSubject.validation.failure_code, 'subject_scope_mismatch')
@@ -460,6 +544,7 @@ test('cancel is observable: aborting mid-delay prevents the success row', async 
       subject_ref: 'demo-learner-A',
       authorization_ref: 'demo-host-scope-A',
       action_id: 'demo-action-102',
+      expected_revision: 0,
       delay_ms: 200,
       outcome: { kind: 'executed' },
     },
@@ -469,7 +554,39 @@ test('cancel is observable: aborting mid-delay prevents the success row', async 
   const receipt = await pending
   assert.equal(receipt.validation.status, 'aborted')
   assert.equal(receipt.receipt.success_written, false)
+  assert.equal(receipt.receipt.revision_after, 0, 'attributable counters reflect the untouched state')
   assert.equal(core._state.recordsBySubject.get('demo-learner-A')?.length ?? 0, 0, 'aborted outcome persists nothing')
+})
+
+test('schema_version upgrade is refused with a dedicated code (review test gap 1)', async () => {
+  const core = makeCore()
+  const upgraded = await core.prepareSupport(demoInput({ schema_version: 'ce.support-input.draft-0.2' }))
+  assert.equal(upgraded.status, 'blocked')
+  assert.equal(upgraded.validation.failure_code, 'unsupported_schema_version')
+  assert.ok(upgraded.validation.failure_message.includes('ce.support-input.draft-0.2'))
+  assert.equal(core._state.requests.size, 0, 'unsupported version stores no request state')
+  const sameCore = await core.prepareSupport(demoInput())
+  assert.equal(sameCore.status, 'proposal_ready', 'the core still accepts the supported version afterwards')
+})
+
+test('exit fallback listener is removed once the unload receipt is written (review P2-4)', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'ce-seam-exit-'))
+  const baseline = process.listenerCount('exit')
+  try {
+    const ctx = createFakeCtx()
+    apply(ctx, { receipt_dir: dir })
+    assert.equal(process.listenerCount('exit'), baseline + 1, 'exit fallback registered while receipts are pending')
+
+    const hooks = ctx._listeners.get('internal/plugin')
+    hooks[0]()
+    assert.equal(process.listenerCount('exit'), baseline, 'written unload receipt removes the exit fallback')
+
+    const noReceiptCtx = createFakeCtx()
+    apply(noReceiptCtx, {})
+    assert.equal(process.listenerCount('exit'), baseline, 'no exit fallback when receipt_dir is not configured')
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
 })
 
 test('load/unload receipts are observable when receipt_dir is configured', () => {

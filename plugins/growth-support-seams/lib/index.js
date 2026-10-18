@@ -63,6 +63,7 @@ export function apply(ctx, config = {}) {
 
   const receiptDir = typeof merged.receipt_dir === 'string' && merged.receipt_dir.length > 0 ? merged.receipt_dir : null
   let unloadWritten = false
+  let exitHandler = null
   const writeUnloadReceipt = () => {
     if (!receiptDir || unloadWritten) return
     unloadWritten = true
@@ -72,6 +73,13 @@ export function apply(ctx, config = {}) {
       at: new Date().toISOString(),
       tools_registered: TOOL_NAMES.length,
     })
+    // The process-exit fallback exists only until the unload receipt is
+    // written, so repeated apply()/dispose cycles never accumulate exit
+    // listeners (review P2-4).
+    if (exitHandler) {
+      process.removeListener('exit', exitHandler)
+      exitHandler = null
+    }
   }
   const writeLoadReceipt = () => {
     if (!receiptDir) return
@@ -87,8 +95,9 @@ export function apply(ctx, config = {}) {
 
   // Fiber-scoped teardown notification. The 'internal/plugin' event contract is
   // internal to Cordis, so it is guarded and paired with a process-exit
-  // fallback: the unload receipt stays observable even if the event contract
-  // changes. This layering is itself a documented verification finding.
+  // fallback that is registered only when receipts are enabled and removed as
+  // soon as the unload receipt is written. This layering is itself a
+  // documented verification finding.
   try {
     ctx.on('internal/plugin', () => {
       writeUnloadReceipt()
@@ -96,9 +105,12 @@ export function apply(ctx, config = {}) {
   } catch {
     // Non-fatal: the process-exit fallback still writes the receipt.
   }
-  process.once('exit', () => {
-    writeUnloadReceipt()
-  })
+  if (receiptDir) {
+    exitHandler = () => {
+      writeUnloadReceipt()
+    }
+    process.once('exit', exitHandler)
+  }
 
   writeLoadReceipt()
 }

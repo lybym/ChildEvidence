@@ -145,7 +145,7 @@ export const RECORD_RECEIPT_SCHEMA = {
     subject_ref: { type: 'string' },
     receipt: {
       type: 'object',
-      required: ['outcome_kind', 'success_written', 'idempotent', 'record_count_for_subject', 'revision_after'],
+      required: ['outcome_kind', 'success_written', 'idempotent'],
       properties: {
         outcome_kind: { type: 'string' },
         success_written: { type: 'boolean' },
@@ -332,35 +332,39 @@ export function createCore(mergedConfig) {
     return { scope }
   }
 
+  /** Returns `{ code, message }` for the first structural violation, else null. */
   function structuralInputChecks(input) {
-    if (!isPlainObject(input)) return 'input must be an object'
+    if (!isPlainObject(input)) return { code: 'invalid_input', message: 'input must be an object' }
     for (const field of SUPPORT_INPUT_SCHEMA.required) {
-      if (input[field] === undefined) return `missing required field: ${field}`
+      if (input[field] === undefined) return { code: 'invalid_input', message: `missing required field: ${field}` }
     }
     if (input.schema_version !== SUPPORT_INPUT_SCHEMA_VERSION) {
-      return `unsupported schema_version: ${JSON.stringify(input.schema_version)}`
+      return {
+        code: 'unsupported_schema_version',
+        message: `unsupported schema_version: ${JSON.stringify(input.schema_version)} (expected ${SUPPORT_INPUT_SCHEMA_VERSION})`,
+      }
     }
     for (const field of ['request_id', 'session_ref', 'subject_ref', 'intent']) {
-      if (!isNonEmptyString(input[field])) return `field ${field} must be a non-empty string`
+      if (!isNonEmptyString(input[field])) return { code: 'invalid_input', message: `field ${field} must be a non-empty string` }
     }
     if (!isPlainObject(input.actor) || !isNonEmptyString(input.actor.principal_ref)) {
-      return 'actor.principal_ref must be a non-empty string'
+      return { code: 'invalid_input', message: 'actor.principal_ref must be a non-empty string' }
     }
     if (!['child', 'parent', 'teacher'].includes(input.actor.role)) {
-      return `actor.role ${JSON.stringify(input.actor?.role)} is not a known role`
+      return { code: 'invalid_input', message: `actor.role ${JSON.stringify(input.actor?.role)} is not a known role` }
     }
     if (!['child', 'parent', 'teacher'].includes(input.response_audience)) {
-      return `response_audience ${JSON.stringify(input.response_audience)} is not a known audience`
+      return { code: 'invalid_input', message: `response_audience ${JSON.stringify(input.response_audience)} is not a known audience` }
     }
     if (input.state_revision !== undefined && (!Number.isInteger(input.state_revision) || input.state_revision < 0)) {
-      return 'state_revision must be a non-negative integer'
+      return { code: 'invalid_input', message: 'state_revision must be a non-negative integer' }
     }
     if (input.observations !== undefined) {
-      if (!Array.isArray(input.observations)) return 'observations must be an array'
+      if (!Array.isArray(input.observations)) return { code: 'invalid_input', message: 'observations must be an array' }
       for (const observation of input.observations) {
-        if (!isPlainObject(observation)) return 'each observation must be an object'
+        if (!isPlainObject(observation)) return { code: 'invalid_input', message: 'each observation must be an object' }
         for (const field of ['id', 'kind', 'statement', 'source_event_ref']) {
-          if (!isNonEmptyString(observation[field])) return `observation.${field} must be a non-empty string`
+          if (!isNonEmptyString(observation[field])) return { code: 'invalid_input', message: `observation.${field} must be a non-empty string` }
         }
       }
     }
@@ -376,9 +380,9 @@ export function createCore(mergedConfig) {
     if (signal?.aborted) {
       return Promise.resolve(abortedResult(input?.request_id, 'signal aborted before prepare'))
     }
-    const structuralError = structuralInputChecks(input)
-    if (structuralError) {
-      return Promise.resolve(blockedResult(isPlainObject(input) ? input.request_id : undefined, 'invalid_input', structuralError))
+    const structural = structuralInputChecks(input)
+    if (structural) {
+      return Promise.resolve(blockedResult(isPlainObject(input) ? input.request_id : undefined, structural.code, structural.message))
     }
     const scopeCheck = resolveScope(input.authorization_ref, 'prepare', input.request_id)
     if (scopeCheck.error) return Promise.resolve(scopeCheck.error)
@@ -574,8 +578,11 @@ export function createCore(mergedConfig) {
 
   /**
    * Step 5 — record the real outcome receipt. Idempotent per
-   * (request_id, action_id); cancelled/failed/declined/unknown outcomes are
-   * recorded without a success row; execution requires a validated proposal.
+   * (request_id, action_id) — a replay returns the ORIGINAL stored outcome,
+   * never the replayed claim; `expected_revision` performs the host-write
+   * concurrency check from contracts.md §5; cancelled/failed/declined/unknown
+   * outcomes are recorded without a success row; execution requires a
+   * validated proposal.
    */
   async function recordOutcome(args, { signal } = {}) {
     if (signal?.aborted) {
@@ -588,6 +595,9 @@ export function createCore(mergedConfig) {
     if (!isPlainObject(outcome) || !OUTCOME_KINDS.includes(outcome.kind)) {
       return blockedReceipt(args, 'invalid_outcome_kind')
     }
+    if (!Number.isInteger(args.expected_revision)) {
+      return blockedReceipt(args, 'invalid_input')
+    }
     const scopeCheck = resolveScope(args.authorization_ref, 'record', args.request_id)
     if (scopeCheck.error) return blockedReceipt(args, scopeCheck.error.validation.failure_code)
     if (scopeCheck.scope.subject_ref !== args.subject_ref) {
@@ -598,6 +608,9 @@ export function createCore(mergedConfig) {
     if (!request) return blockedReceipt(args, 'prepare_required')
     if (args.subject_ref !== request.subject_ref || args.session_ref !== request.session_ref) {
       return blockedReceipt(args, 'subject_scope_mismatch')
+    }
+    if (args.expected_revision !== request.state_revision) {
+      return blockedReceipt(args, 'revision_conflict')
     }
     const proposal = proposals.get(args.request_id)
     if (!proposal) return blockedReceipt(args, 'unvalidated_outcome')
@@ -617,7 +630,9 @@ export function createCore(mergedConfig) {
     if (request.recordedKeys?.has(dedupKey)) {
       const existing = (recordsBySubject.get(args.subject_ref) ?? []).find((entry) => entry.dedup_key === dedupKey)
       calls.push({ kind: 'record', request_id: args.request_id, session_ref: args.session_ref, subject_ref: args.subject_ref, outcome: 'idempotent_replay' })
-      return receiptResult(args, outcome.kind, {
+      // A replay echoes the ORIGINAL stored receipt; a differing outcome.kind
+      // in the replayed call must not overwrite or contradict it (review P2-3).
+      return receiptResult(args, existing?.receipt.outcome_kind ?? outcome.kind, {
         success_written: existing?.receipt.success_written ?? false,
         idempotent: true,
         record_count_for_subject: (recordsBySubject.get(args.subject_ref) ?? []).length,
@@ -650,36 +665,53 @@ export function createCore(mergedConfig) {
     })
   }
 
+  /**
+   * Blocked receipt: reports the caller-attributable truth only. When the
+   * request exists and the subject matches it, the real record count and
+   * revision are included; otherwise the counters are omitted entirely
+   * instead of fabricating zeros (review P2-2).
+   */
   function blockedReceipt(args, code, validationOverride) {
-    return {
+    const requestId = isPlainObject(args) && typeof args.request_id === 'string' ? args.request_id : ''
+    const actionId = isPlainObject(args) && typeof args.action_id === 'string' ? args.action_id : ''
+    const subjectRef = isPlainObject(args) && typeof args.subject_ref === 'string' ? args.subject_ref : ''
+    const request = requestId !== '' ? requests.get(requestId) : undefined
+    const attributable = request !== undefined && subjectRef !== '' && request.subject_ref === subjectRef
+    const receipt = {
+      outcome_kind: 'blocked',
+      success_written: false,
+      idempotent: false,
+    }
+    if (attributable) {
+      receipt.record_count_for_subject = (recordsBySubject.get(subjectRef) ?? []).length
+      receipt.revision_after = request.state_revision
+    }
+    const result = {
       schema_version: RECORD_RECEIPT_SCHEMA_VERSION,
-      request_id: isPlainObject(args) && typeof args.request_id === 'string' ? args.request_id : '',
-      action_id: isPlainObject(args) && typeof args.action_id === 'string' ? args.action_id : '',
-      receipt: {
-        outcome_kind: 'blocked',
-        success_written: false,
-        idempotent: false,
-        record_count_for_subject: 0,
-        revision_after: 0,
-      },
+      request_id: requestId,
+      action_id: actionId,
+      receipt,
       validation: validationOverride ?? { ...failedValidation(), failure_code: code },
     }
+    if (subjectRef !== '') result.subject_ref = subjectRef
+    return result
   }
 
   function receiptResult(args, outcomeKind, receipt) {
+    const inner = {
+      outcome_kind: outcomeKind,
+      success_written: receipt.success_written,
+      idempotent: receipt.idempotent,
+    }
+    if (receipt.record_count_for_subject !== undefined) inner.record_count_for_subject = receipt.record_count_for_subject
+    if (receipt.revision_after !== undefined) inner.revision_after = receipt.revision_after
     return {
       schema_version: RECORD_RECEIPT_SCHEMA_VERSION,
       request_id: args.request_id,
       action_id: args.action_id,
       session_ref: args.session_ref,
       subject_ref: args.subject_ref,
-      receipt: {
-        outcome_kind: outcomeKind,
-        success_written: receipt.success_written,
-        idempotent: receipt.idempotent,
-        record_count_for_subject: receipt.record_count_for_subject,
-        revision_after: receipt.revision_after,
-      },
+      receipt: inner,
       validation: passedValidation(),
     }
   }

@@ -3,14 +3,24 @@
  * schemas and the contracts.md §2.1 example input against the REAL host
  * validator (@deepseek-ai/dsh-tools).
  *
- * Usage:
- *   node tools/validate-with-host.mjs <profileDirOrToolsLibPath>
+ * Validator resolution (no machine-specific path is stored in version
+ * control; AGENTS.md #12):
+ *   1. explicit argument — an isolated DSH profile directory whose
+ *      node_modules contains @deepseek-ai/dsh-tools, or a direct path to the
+ *      dsh-tools lib/index.js;
+ *   2. `CE_DSH_TOOLS_LIB` environment variable — direct path to the
+ *      dsh-tools lib/index.js;
+ *   3. the locally installed DeepSeek Harness payload, derived at runtime
+ *      from `$env:LOCALAPPDATA` (read-only).
  *
- * The argument may be (a) an isolated DSH profile directory whose
- * node_modules contains @deepseek-ai/dsh-tools, (b) a direct path to the
- * dsh-tools lib/index.js, or (c) omitted/missing — then the helper falls back
- * to the locally installed DeepSeek Harness app payload (read-only).
+ * NOTE: the installed app ships its packages inside an `.asar` archive that
+ * ONLY the host runtime (Electron-as-node) can read. With plain `node`,
+ * candidate 3 is invisible (`existsSync` returns false); either run this
+ * script through the host runtime (see the failure diagnostic) or point
+ * `CE_DSH_TOOLS_LIB` at an unpacked copy, e.g. an isolated profile that has
+ * dsh-tools installed.
  *
+ * Prints the resolved validator path and its package version as provenance.
  * Exits 0 when every assertion passes; any mismatch prints the violation and
  * exits 1. Requires no network and no model credentials.
  */
@@ -19,23 +29,90 @@ import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 
-const DEFAULT_APP_TOOLS_LIB =
-  'C:/Users/lybym/AppData/Local/Programs/DeepSeek Harness/resources/app.asar/dsh/node_modules/@deepseek-ai/dsh-tools/lib/index.js'
-
-const arg = process.argv[2]
-let toolsLib = null
-if (arg && existsSync(join(arg, 'node_modules', '@deepseek-ai', 'dsh-tools', 'lib', 'index.js'))) {
-  toolsLib = join(arg, 'node_modules', '@deepseek-ai', 'dsh-tools', 'lib', 'index.js')
-} else if (arg && existsSync(arg) && arg.endsWith('.js')) {
-  toolsLib = arg
-} else if (existsSync(DEFAULT_APP_TOOLS_LIB)) {
-  toolsLib = DEFAULT_APP_TOOLS_LIB
+function buildCandidates(arg) {
+  const candidates = []
+  if (arg) {
+    if (arg.endsWith('.js')) {
+      candidates.push({ label: `explicit path (${arg})`, lib: arg })
+    } else {
+      candidates.push({
+        label: `explicit profile (${arg})`,
+        lib: join(arg, 'node_modules', '@deepseek-ai', 'dsh-tools', 'lib', 'index.js'),
+      })
+    }
+  }
+  const envLib = process.env.CE_DSH_TOOLS_LIB
+  if (envLib) {
+    candidates.push({ label: 'env CE_DSH_TOOLS_LIB', lib: envLib })
+  }
+  const localAppData = process.env.LOCALAPPDATA
+  if (localAppData) {
+    candidates.push({
+      label: 'installed DeepSeek Harness payload ($LOCALAPPDATA, read-only)',
+      lib: join(
+        localAppData,
+        'Programs',
+        'DeepSeek Harness',
+        'resources',
+        'app.asar',
+        'dsh',
+        'node_modules',
+        '@deepseek-ai',
+        'dsh-tools',
+        'lib',
+        'index.js'
+      ),
+    })
+  }
+  return candidates
 }
-if (!toolsLib) {
-  console.error('dsh-tools not found: pass a profile directory or the dsh-tools lib/index.js path')
+
+async function resolveHost() {
+  const attempts = []
+  for (const candidate of buildCandidates(process.argv[2])) {
+    if (!existsSync(candidate.lib)) {
+      attempts.push(`${candidate.label}: not found by this runtime`)
+      continue
+    }
+    try {
+      const host = await import(pathToFileURL(candidate.lib).href)
+      const expected = ['assertSupportedJsonSchema', 'validateJsonSchemaValue']
+      const missing = expected.filter((name) => typeof host[name] !== 'function')
+      if (missing.length > 0) {
+        attempts.push(`${candidate.label}: missing exports ${missing.join(', ')}`)
+        continue
+      }
+      let version = 'unknown'
+      try {
+        version = JSON.parse(readFileSync(join(candidate.lib, '..', '..', 'package.json'), 'utf8')).version
+      } catch {
+        // Provenance is best-effort; the validator itself is what matters.
+      }
+      return { host, lib: candidate.lib, version, attempts }
+    } catch (error) {
+      attempts.push(`${candidate.label}: import failed (${error.message})`)
+    }
+  }
+  return { host: null, lib: null, version: null, attempts }
+}
+
+const resolved = await resolveHost()
+if (!resolved.host) {
+  console.error('dsh-tools could not be resolved. Attempts:')
+  for (const attempt of resolved.attempts) console.error(`  - ${attempt}`)
+  console.error(
+    'Fixes: pass an isolated profile directory that has dsh-tools installed, set CE_DSH_TOOLS_LIB to an unpacked\n' +
+      'dsh-tools lib/index.js, or run this script through the host runtime, which can read the installed .asar\n' +
+      'payload (plain Node cannot):\n' +
+      '  $env:ELECTRON_RUN_AS_NODE = "1"\n' +
+      '  & "$env:LOCALAPPDATA\\Programs\\DeepSeek Harness\\DeepSeek Harness.exe" --expose-internals \\\n' +
+      '      plugins\\growth-support-seams\\tools\\validate-with-host.mjs'
+  )
   process.exit(1)
 }
-const host = await import(pathToFileURL(toolsLib).href)
+const host = resolved.host
+console.log(`validator: ${resolved.lib}`)
+console.log(`dsh-tools version: ${resolved.version}`)
 
 const schemas = {
   'support-input': JSON.parse(readFileSync(new URL('../schemas/support-input.schema.json', import.meta.url), 'utf8')),

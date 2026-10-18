@@ -50,16 +50,17 @@ export function buildValidateTool(core) {
 export function buildRecordTool(core) {
   return {
     name: 'ce_record_support_outcome',
-    description: `${SYNTHETIC_NOTICE} Record the real outcome receipt for a validated action. Idempotent per (request_id, action_id); cancelled/failed/declined/unknown outcomes never write a success row. delay_ms is a verification-only cooperative-cancel knob (max 5000).`,
+    description: `${SYNTHETIC_NOTICE} Record the real outcome receipt for a validated action. Requires expected_revision (contracts.md §5 host-write concurrency check); idempotent per (request_id, action_id) — replays echo the original stored outcome; cancelled/failed/declined/unknown outcomes never write a success row. delay_ms is a verification-only cooperative-cancel knob (max 5000).`,
     parameters: {
       type: 'object',
-      required: ['request_id', 'session_ref', 'subject_ref', 'authorization_ref', 'action_id', 'outcome'],
+      required: ['request_id', 'session_ref', 'subject_ref', 'authorization_ref', 'action_id', 'expected_revision', 'outcome'],
       properties: {
         request_id: { type: 'string' },
         session_ref: { type: 'string' },
         subject_ref: { type: 'string' },
         authorization_ref: { type: 'string' },
         action_id: { type: 'string' },
+        expected_revision: { type: 'integer' },
         delay_ms: { type: 'integer' },
         outcome: {
           type: 'object',
