@@ -62,6 +62,7 @@ are ``pathlib`` throughout (AGENTS #12).
 """
 from __future__ import annotations
 
+from contextlib import contextmanager
 from importlib import resources
 import hashlib
 import json
@@ -71,6 +72,15 @@ import shutil
 import sqlite3
 from pathlib import Path
 from uuid import uuid4
+
+try:
+    import fcntl
+except ImportError:  # pragma: no cover - fcntl is POSIX-only (Windows lacks it)
+    fcntl = None
+try:
+    import msvcrt
+except ImportError:  # pragma: no cover - msvcrt is Windows-only
+    msvcrt = None
 
 from . import assets, db, evidence
 from .strict_schema import strict_validate as _strict_validate
@@ -667,6 +677,25 @@ def _closure_errors(records: dict) -> list[str]:
                 errors.append(
                     f"PUB-Closure: {label} covers asset {target_id!r}@{target_revision} "
                     "that is not part of the pack (evaluation closure)")
+    # Evidence cards must also resolve inside the pack: every source version a
+    # card carries cites a work, and that work must be in catalog.jsonl. The
+    # builder guarantees this (``collect_records`` adds card works to the
+    # catalog closure); this check keeps hand-assembled or re-stamped packs to
+    # the same rule at verify time (AC #2: 缺失引用失败).
+    for card in records.get("evidence-cards.jsonl") or []:
+        if not isinstance(card, dict):
+            continue
+        claim = card.get("claim")
+        claim_label = claim.get("claim_id") if isinstance(claim, dict) else None
+        for sv in card.get("source_versions") or []:
+            if not isinstance(sv, dict):
+                continue
+            work_id = sv.get("work_id")
+            if work_id not in catalog_ids:
+                errors.append(
+                    f"PUB-Closure: evidence card {claim_label!r} carries source "
+                    f"version {sv.get('version_id')!r} whose work {work_id!r} is not "
+                    "in catalog.jsonl (citation closure)")
     return errors
 
 
@@ -962,6 +991,71 @@ _ACTIVE_FILE = "ACTIVE.json"
 _RETRACTIONS_FILE = "retractions.jsonl"
 
 
+def _atomic_write_bytes(path: Path, data: bytes) -> None:
+    """Durably replace ``path`` with ``data``: write tmp → fsync → ``os.replace``.
+
+    ``os.replace`` alone is atomic but not durable — after a power loss the
+    pointer/ledger file may vanish even though the write "succeeded". The tmp
+    file is flushed to disk before the swap; on POSIX the containing directory
+    is fsynced too so the rename itself survives (best-effort; NTFS journals
+    metadata and directory handles cannot be opened on Windows).
+    """
+    tmp_path = path.parent / (path.name + f".tmp-{uuid4().hex[:8]}")
+    flags = os.O_WRONLY | os.O_CREAT | os.O_TRUNC
+    if hasattr(os, "O_BINARY"):
+        flags |= os.O_BINARY
+    fd = os.open(tmp_path, flags, 0o666)
+    try:
+        view = memoryview(data)
+        while view:
+            view = view[os.write(fd, view):]
+        os.fsync(fd)
+    finally:
+        os.close(fd)
+    os.replace(tmp_path, path)
+    if os.name == "posix":
+        try:
+            dir_fd = os.open(path.parent, os.O_RDONLY)
+            try:
+                os.fsync(dir_fd)
+            finally:
+                os.close(dir_fd)
+        except OSError:
+            pass  # best effort: some filesystems refuse directory fsync
+
+
+@contextmanager
+def _ledger_lock(consumer_dir: Path):
+    """Serialize retraction-ledger read-modify-write cycles across processes.
+
+    ``append_retraction`` is append-only in content but implemented as
+    read → validate → rewrite; two concurrent retractions would otherwise each
+    start from the same stale snapshot and the later ``os.replace`` would
+    silently drop the earlier withdrawal — and one lost withdrawal is exactly
+    the "rollback resurrects a retracted asset" window this ledger exists to
+    prevent. An exclusive OS-level lock on a sidecar lock file closes that
+    race (``fcntl.flock`` on POSIX, ``msvcrt.locking`` on Windows; both
+    stdlib, AGENTS #9).
+    """
+    lock_path = Path(consumer_dir) / (_RETRACTIONS_FILE + ".lock")
+    fd = os.open(lock_path, os.O_CREAT | os.O_RDWR, 0o666)
+    try:
+        if fcntl is not None:
+            fcntl.flock(fd, fcntl.LOCK_EX)
+            try:
+                yield
+            finally:
+                fcntl.flock(fd, fcntl.LOCK_UN)
+        else:
+            msvcrt.locking(fd, msvcrt.LK_LOCK, 1)
+            try:
+                yield
+            finally:
+                msvcrt.locking(fd, msvcrt.LK_UNLCK, 1)
+    finally:
+        os.close(fd)
+
+
 def activate_pack(pack_dir: Path, consumer_dir: Path) -> dict:
     """Atomically activate a verified pack in a consumer area.
 
@@ -984,7 +1078,18 @@ def activate_pack(pack_dir: Path, consumer_dir: Path) -> dict:
     dest = packs_root / report["pack_id"]
     packs_root.mkdir(parents=True, exist_ok=True)
     if dest.exists():
-        existing = json.loads((dest / "manifest.json").read_text(encoding="utf-8"))
+        # An existing pack id is immutable; reading its manifest is how we
+        # detect an attempt to re-use the id with different content. A damaged
+        # manifest must surface as a named PUB-* error, not a raw
+        # ``json.JSONDecodeError`` traceback.
+        try:
+            existing = json.loads((dest / "manifest.json").read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as error:
+            raise PublishError(
+                f"PUB-Hash: pack id {report['pack_id']!r} already exists in the "
+                "consumer area but its manifest.json is unreadable/invalid: "
+                f"{error} — pack ids are immutable; refusing to touch the damaged "
+                "directory (repair or remove it manually)") from error
         if existing.get("pack_hash") != report["pack_hash"]:
             raise PublishError(
                 f"PUB-Hash: pack id {report['pack_id']!r} already exists in the "
@@ -1012,11 +1117,9 @@ def activate_pack(pack_dir: Path, consumer_dir: Path) -> dict:
         "pack_hash": report["pack_hash"],
         "activated_at": _now_iso(),
     }
-    active_path = consumer_dir / _ACTIVE_FILE
-    tmp_path = consumer_dir / (_ACTIVE_FILE + f".tmp-{uuid4().hex[:8]}")
-    tmp_path.write_bytes(
+    _atomic_write_bytes(
+        consumer_dir / _ACTIVE_FILE,
         (json.dumps(active, ensure_ascii=False, indent=1) + "\n").encode("utf-8"))
-    os.replace(tmp_path, active_path)
     return {"active": active, "consumer_dir": str(consumer_dir),
             "pack_dir": str(dest)}
 
@@ -1121,7 +1224,10 @@ def append_retraction(consumer_dir: Path, *, asset_id: str, reason: str,
     spirit). ``revision=None`` withdraws *every* revision of the asset, which
     is what makes rollback unable to resurrect the asset. Duplicate withdrawal
     of the same (asset_id, revision) is rejected, matching the terminal
-    semantics of ``assets.retract_asset``.
+    semantics of ``assets.retract_asset``. The read-check-rewrite cycle runs
+    under an exclusive cross-process lock (:func:`_ledger_lock`), so two
+    concurrent retractions can never silently drop each other's entry, and
+    the rewrite is fsynced before the atomic swap (:func:`_atomic_write_bytes`).
     """
     entry = {
         "asset_id": asset_id,
@@ -1134,19 +1240,18 @@ def append_retraction(consumer_dir: Path, *, asset_id: str, reason: str,
     _validate_retraction_entry(entry, "new entry")
     consumer_dir = Path(consumer_dir)
     consumer_dir.mkdir(parents=True, exist_ok=True)
-    existing = load_retractions(consumer_dir)
-    for previous in existing:
-        if previous["asset_id"] == asset_id and previous["revision"] == revision:
-            raise PublishError(
-                f"PUB-Retract: {asset_id!r}@{revision} is already withdrawn "
-                f"({previous['retracted_at']}; {previous['reason']!r}) — withdrawal "
-                "is append-only and terminal, never deleted or reversed")
-    path = consumer_dir / _RETRACTIONS_FILE
-    tmp_path = consumer_dir / (_RETRACTIONS_FILE + f".tmp-{uuid4().hex[:8]}")
-    payload = "".join(_canonical(previous) + "\n" for previous in existing)
-    payload += _canonical(entry) + "\n"
-    tmp_path.write_bytes(payload.encode("utf-8"))
-    os.replace(tmp_path, path)
+    with _ledger_lock(consumer_dir):
+        existing = load_retractions(consumer_dir)
+        for previous in existing:
+            if previous["asset_id"] == asset_id and previous["revision"] == revision:
+                raise PublishError(
+                    f"PUB-Retract: {asset_id!r}@{revision} is already withdrawn "
+                    f"({previous['retracted_at']}; {previous['reason']!r}) — withdrawal "
+                    "is append-only and terminal, never deleted or reversed")
+        path = consumer_dir / _RETRACTIONS_FILE
+        payload = "".join(_canonical(previous) + "\n" for previous in existing)
+        payload += _canonical(entry) + "\n"
+        _atomic_write_bytes(path, payload.encode("utf-8"))
     return {"entry": entry, "ledger_size": len(existing) + 1,
             "ledger_path": str(path)}
 
@@ -1287,14 +1392,22 @@ def diff_packs(from_dir: Path, to_dir: Path) -> dict:
     def _ids(pack_dir: Path, name: str, key: str) -> set:
         return {record.get(key) for record in _read_jsonl(Path(pack_dir) / name, [])}
 
+    def _claim_ids(pack_dir: Path) -> set:
+        # Evidence cards nest the claim under ``claim`` (see ``_card_for_claim``
+        # and ``_check_duplicates``); a top-level ``claim_id`` key would read
+        # ``None`` for every card and silently report an empty delta.
+        ids = set()
+        for record in _read_jsonl(Path(pack_dir) / "evidence-cards.jsonl", []):
+            if isinstance(record, dict) and isinstance(record.get("claim"), dict):
+                ids.add(record["claim"].get("claim_id"))
+        return ids
+
     catalog_added = sorted(_ids(to_dir, "catalog.jsonl", "internal_id")
                            - _ids(from_dir, "catalog.jsonl", "internal_id"))
     catalog_removed = sorted(_ids(from_dir, "catalog.jsonl", "internal_id")
                              - _ids(to_dir, "catalog.jsonl", "internal_id"))
-    cards_added = sorted(_ids(to_dir, "evidence-cards.jsonl", "claim_id")
-                         - _ids(from_dir, "evidence-cards.jsonl", "claim_id"))
-    cards_removed = sorted(_ids(from_dir, "evidence-cards.jsonl", "claim_id")
-                           - _ids(to_dir, "evidence-cards.jsonl", "claim_id"))
+    cards_added = sorted(_claim_ids(to_dir) - _claim_ids(from_dir))
+    cards_removed = sorted(_claim_ids(from_dir) - _claim_ids(to_dir))
     return {
         "from": {"pack_id": from_report["pack_id"], "pack_hash": from_report["pack_hash"],
                  "content_class": from_report["content_class"]},

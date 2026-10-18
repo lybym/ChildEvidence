@@ -7,7 +7,7 @@
 > manifest 严格 schema
 > [contracts/publish/manifest.schema.json](../../src/research_library/contracts/publish/manifest.schema.json)、
 > CLI 入口 `research publish`（[cli.py](../../src/research_library/cli.py)），
-> 测试 `tests/test_publish_pack.py`（51 项）。
+> 测试 `tests/test_publish_pack.py`（57 项）。
 > 本文档描述已实现的工程契约；它不声称任何科研结论、发布资格、真实批准或
 > 规程生效。设计依据：
 > [architecture.md](../design/growth-support-mvp/architecture.md) §2/§6、
@@ -141,7 +141,7 @@ manifest 的 `publisher` 只含引用名（`authentication: "external"`、
 
 ```powershell
 $env:PYTHONPATH = "src"
-# 全量测试（含本交付新增 tests/test_publish_pack.py 51 项）
+# 全量测试（含本交付新增 tests/test_publish_pack.py 57 项）
 python -m unittest discover -s tests
 # 离线冒烟
 python scripts\smoke_offline.py
@@ -165,7 +165,7 @@ python -m research_library publish read --consumer-dir <consumer> --kind strateg
 ## 8. 实际验证范围与未决项
 
 已验证（全部离线、合成数据，未调用模型、未访问网络；`tests/test_publish_pack.py`
-51 项 + 全量 487 项 0 failure/error、1 项既有 skip，离线冒烟与 status 通过）：
+57 项 + 全量 493 项 0 failure/error、1 项既有 skip，离线冒烟与 status 通过）：
 
 - 白名单负向：欺诈白名单、禁用字段名、本机路径（盘符/UNC/POSIX）、凭据形态、
   资产信封同名字段回归（review_status/limitations 合法性）、release 包排除

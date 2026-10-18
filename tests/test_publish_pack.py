@@ -24,6 +24,7 @@ from contextlib import closing
 import json
 from pathlib import Path
 import shutil
+import threading
 import unittest
 
 from helpers import make_tmp_dir
@@ -662,6 +663,72 @@ class IntegrityTests(PublisherFixtureBase):
         self.assertEqual(diff["assets_added"], [])
         self.assertEqual(diff["assets_removed"], [])
 
+    def test_diff_reports_evidence_card_additions_and_removals(self):
+        # Card records nest claim_id under ``claim`` (see _card_for_claim); the
+        # delta must track real card changes instead of always reporting []
+        # (regression: diff used to read a top-level claim_id key).
+        ev.insert_record(self.conn, "claim", {
+            "claim_id": "c-fixture03",
+            "statement": "Second eligible synthetic claim (no research meaning)"})
+        ev.insert_record(self.conn, "appraisal", {
+            "appraisal_id": "ap-fixture03", "target_kind": "claim",
+            "target_id": "c-fixture03", "quality": "medium",
+            "biases": "synthetic bias note", "limitations": "synthetic limitation",
+            "applicability": "synthetic applicability",
+            "review_origin": "single_human", "review_status": "human_reviewed",
+            "release_eligibility": "eligible", "created_at": BUILT_AT})
+        v2 = self.build("2026.10.19-r2")
+        forward = pub.diff_packs(self.pack_dir, Path(v2["pack_dir"]))
+        self.assertEqual(forward["evidence_cards_added"], ["c-fixture03"])
+        self.assertEqual(forward["evidence_cards_removed"], [])
+        # reverse direction: the claim loses eligibility between snapshots
+        self.conn.execute(
+            "UPDATE evidence_appraisals SET release_eligibility='not_eligible'"
+            " WHERE appraisal_id='ap-fixture03'")
+        self.conn.commit()
+        v3 = self.build("2026.10.19-r3")
+        backward = pub.diff_packs(Path(v2["pack_dir"]), Path(v3["pack_dir"]))
+        self.assertEqual(backward["evidence_cards_removed"], ["c-fixture03"])
+        self.assertEqual(backward["evidence_cards_added"], [])
+
+    def test_verify_closure_checks_card_source_versions_against_catalog(self):
+        # Every work cited by a card's source_versions must be in
+        # catalog.jsonl. The builder guarantees this; a hand-assembled pack
+        # that drops the catalog entry and re-stamps the manifest must still
+        # fail verification (AC #2: 缺失引用失败).
+        self.conn.execute(
+            "INSERT INTO works (internal_id, title, record_status)"
+            " VALUES (?, ?, 'ingested')",
+            ("lt-fixture03", "Fixture Work Three (synthetic, card-only citation)"))
+        self.conn.commit()
+        ev.insert_record(self.conn, "study", {"study_id": "st-fixture01"})
+        ev.insert_record(self.conn, "source_version", {
+            "version_id": "sv-fixture01", "work_id": "lt-fixture03",
+            "source_kind": "unspecified", "origin": "manual"})
+        ev.insert_record(self.conn, "finding", {
+            "finding_id": "f-fixture01", "study_id": "st-fixture01",
+            "source_version_id": "sv-fixture01",
+            "statement": "Synthetic finding fixture (no research meaning)"})
+        ev.insert_record(self.conn, "relation", {
+            "relation_id": "r-fixture01", "claim_id": "c-fixture01",
+            "finding_id": "f-fixture01", "relation": "supports"})
+        pack_dir = Path(self.build("2026.10.19-r2")["pack_dir"])
+        self.assertTrue(pub.verify_pack(pack_dir)["ok"], "clean pack must verify")
+        # drop the card-only work from the catalog, then re-stamp the manifest
+        lines = [line for line in
+                 (pack_dir / "catalog.jsonl").read_text(encoding="utf-8").splitlines()
+                 if line.strip()
+                 and json.loads(line).get("internal_id") != "lt-fixture03"]
+        (pack_dir / "catalog.jsonl").write_bytes(
+            "".join(line + "\n" for line in lines).encode("utf-8"))
+        self.restamp(pack_dir)
+        result = pub.verify_pack(pack_dir)
+        self.assertFalse(result["ok"])
+        self.assertTrue(any(
+            "PUB-Closure" in error and "evidence card" in error
+            and "lt-fixture03" in error for error in result["errors"]),
+            result["errors"])
+
 
 # ---------------------------------------------------------------------------
 # AC #3 — clean-environment read, atomic activation, retraction precedence
@@ -742,6 +809,24 @@ class ActivationTests(PublisherFixtureBase):
             pub.pack_status(self._consumer("empty-consumer"))
         self.assertIn("PUB-Active", str(ctx.exception))
 
+    def test_activate_existing_pack_with_damaged_manifest_is_named_error(self):
+        # Re-activating onto an existing pack id whose manifest.json is corrupt
+        # must raise a named PUB-* PublishError (which the CLI reports), not a
+        # raw json.JSONDecodeError traceback.
+        self.seed_eligible_chain()
+        report = self.build("2026.10.19-r1")
+        consumer = self._consumer()
+        pub.activate_pack(Path(report["pack_dir"]), consumer)
+        dest = consumer / "packs" / "ce-pack-2026.10.19-r1"
+        (dest / "manifest.json").write_bytes(b"{not json")
+        with self.assertRaises(pub.PublishError) as ctx:
+            pub.activate_pack(Path(report["pack_dir"]), consumer)
+        self.assertIn("PUB-Hash", str(ctx.exception))
+        self.assertIn("manifest.json is unreadable/invalid", str(ctx.exception))
+        # the failed re-activation leaves the active pointer untouched
+        active = json.loads((consumer / "ACTIVE.json").read_text(encoding="utf-8"))
+        self.assertEqual(active["pack_id"], "ce-pack-2026.10.19-r1")
+
 
 class RetractionTests(PublisherFixtureBase):
 
@@ -816,6 +901,42 @@ class RetractionTests(PublisherFixtureBase):
                                   reason="second", decision_ref="test-decision-005")
         self.assertIn("PUB-Retract", str(ctx.exception))
         self.assertIn("append-only", str(ctx.exception))
+
+    def test_concurrent_retractions_do_not_lose_entries(self):
+        # The ledger is the safety net that keeps rollback from resurrecting
+        # withdrawn assets; two overlapping withdrawal runs must both land in
+        # the ledger. The read-modify-write cycle is serialized by an
+        # OS-level lock — without it the later rewrite would silently drop
+        # the earlier withdrawal (regression for the concurrent-retract race).
+        self.seed_eligible_chain()
+        self._activate_version("2026.10.19-r1")
+        consumer = self.root / "consumer"
+        barrier = threading.Barrier(2)
+        errors = []
+
+        def withdraw(asset_id):
+            barrier.wait()
+            try:
+                pub.append_retraction(consumer, asset_id=asset_id,
+                                      reason="synthetic concurrent withdrawal",
+                                      decision_ref=f"test-decision-{asset_id}")
+            except Exception as error:  # surfaced below; never swallowed
+                errors.append(error)
+
+        threads = [threading.Thread(target=withdraw, args=("test-strategy-a",)),
+                   threading.Thread(target=withdraw, args=("test-eval-a",))]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join()
+        self.assertEqual(errors, [])
+        ledger = pub.load_retractions(consumer)
+        self.assertEqual({entry["asset_id"] for entry in ledger},
+                         {"test-strategy-a", "test-eval-a"})
+        # both withdrawals are effective in the active pack
+        resolved = pub.resolve_assets(consumer)
+        self.assertEqual(resolved["retraction_count"], 2)
+        self.assertEqual(resolved["usable_count"], 0)
 
     def test_withdrawal_requires_reason_and_decision_ref(self):
         consumer = self.root / "consumer"
