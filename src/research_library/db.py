@@ -12,7 +12,9 @@ import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
 
-SCHEMA = """
+from .evidence import EVIDENCE_DDL
+
+BASE_SCHEMA = """
 CREATE TABLE IF NOT EXISTS works (
   internal_id TEXT PRIMARY KEY,
   doi TEXT COLLATE NOCASE UNIQUE,
@@ -127,6 +129,13 @@ CREATE TABLE IF NOT EXISTS runs (
   notes TEXT
 );
 """
+
+# Issue #14 additive evidence-domain tables. Appended to the schema executed
+# on every connect() so both fresh and pre-evidence databases converge on the
+# same additive migration (CREATE TABLE IF NOT EXISTS only; works/history
+# tables are never rewritten). The recorded migration entry with a pre-change
+# backup is research_library.evidence.migrate_with_backup (Issue #14 失败与回滚).
+SCHEMA = BASE_SCHEMA + EVIDENCE_DDL
 
 JSON_FIELDS = {
     "authors", "issn", "research_domains", "topic_tags", "theoretical_frameworks",

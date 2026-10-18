@@ -1,0 +1,24 @@
+{
+  "$id": "childevidence:evidence:source-version:1",
+  "title": "SourceVersion (concrete version of a source bound to a Work)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "version_id", "work_id", "source_kind", "locator_status", "origin"],
+  "properties": {
+    "schema_version": {"type": "string", "const": "ce.evidence/1"},
+    "version_id": {"type": "string", "pattern": "^sv-[A-Za-z0-9][A-Za-z0-9_.-]{2,77}$"},
+    "work_id": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{2,63}$"},
+    "study_id": {"type": ["string", "null"], "pattern": "^st-[A-Za-z0-9][A-Za-z0-9_.-]{2,61}$"},
+    "source_kind": {"type": "string", "enum": ["journal_article", "conference_paper", "preprint",
+                    "report", "survey", "dataset", "web_page", "book_chapter", "other", "unspecified"]},
+    "original_version": {"type": ["string", "null"], "maxLength": 100},
+    "original_sha256": {"type": ["string", "null"], "pattern": "^[0-9a-f]{64}$"},
+    "parsed_sha256": {"type": ["string", "null"], "pattern": "^[0-9a-f]{64}$"},
+    "parsed_format": {"type": ["string", "null"], "maxLength": 50},
+    "locator_status": {"type": "string", "enum": ["unknown", "unverified", "verified", "failed"]},
+    "origin": {"type": "string", "enum": ["library_ingest", "pilot_mapping", "manual"]},
+    "origin_ref": {"type": ["string", "null"], "maxLength": 200},
+    "created_at": {"type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$"},
+    "notes": {"type": ["string", "null"], "maxLength": 2000}
+  }
+}
