@@ -1,0 +1,481 @@
+{
+  "$schema_name": "childevidence-gsgov-qualification-decisions",
+  "$schema_version": 1,
+  "status": "DRAFT 2026-10-18 (pending human decision; not an effective rule)",
+  "title": "成长支持首包资格与人格演进决策契约（GS-01…GS-06）",
+  "description": "Issue #11 的机器可校验形态：首包资格两条路线的比较与未决登记、六维分离、发布资格/人格更新/撤回/未审核拒绝/两类数据边界的可执行正负向验收规则。本契约是待审提案，不改变现行门禁；DRAFT 规程与 CE-01R 契约语义不被改写（AGENTS #23/#24）。",
+  "governance_doc": "docs/governance/GROWTH-SUPPORT-QUALIFICATION.md",
+  "routes": {
+    "manual_publication": {
+      "label": "路线 A：保留人工发布资格（现行门禁，继续有效）",
+      "uses": ["真实发布（含真实儿童/家长/教师使用）前的全部资产"],
+      "review_method": [
+        "Evidence 层：领域审核人 approved（成熟度 L3，gold）",
+        "Knowledge 层：知识负责人版本化知识包发布（manifest 哈希）",
+        "Agent 层：产品负责人显式批准 + 回归评测用例（KNOWLEDGE_GOVERNANCE §2–§4）"
+      ],
+      "approval_conditions": [
+        "CE-01R-CHECKLIST 人工签署生效（当前未签署，四份规程 DRAFT v1.1）",
+        "满足 gold 资格流程：独立双人一致或裁决 + 知识负责人签署（LT-03/LT-04）",
+        "#2 类人工标注/复核资源按 GS-D2 决定落实"
+      ],
+      "unverified": [
+        "现实条件：当前无第二名人工 Reviewer（R9），人工复核资源存在阻塞",
+        "四份规程与 CE-01R 契约仍为待人工审核，未生效"
+      ]
+    },
+    "ai_review_trial": {
+      "label": "路线 B：低风险私有 AI 审查试用资格（提案，未被预先选择）",
+      "uses": [
+        "低风险、私有研究试用范围内的受限资产",
+        "不包含真实发布、真实儿童正式行为资产或批量科研审查"
+      ],
+      "review_method": [
+        "技术校验（结构/哈希/引用/可执行状态）单独留痕",
+        "AI 审查留痕：review_origin 如实标记 ai_draft / multi_model_consistent，不伪造人工身份",
+        "用途限定 + 未验证部分显式声明；独立科学验证缺口如实标注，不冒充人工 Gold"
+      ],
+      "approval_conditions": [
+        "GS-D1 由用户真实决定启用，且明确用途清单",
+        "同版本修订四份科研规程、AGENTS、治理契约并通过一致性测试",
+        "保留未验证声明：AI 审查的科学效度无独立验证；多模型一致投票不等于专家共识（AGENTS #18）"
+      ],
+      "unverified": [
+        "AI 审查产出的科学效度未经独立人工验证",
+        "AI 一致性不能产生人工 Gold（LT-03/LT-04、GS-02）",
+        "长期行为影响与个体适用性未验证"
+      ]
+    }
+  },
+  "route_decision": {
+    "decision_id": "GS-D1",
+    "status": "pending_human_decision",
+    "preselected": false,
+    "note": "路线 B 未被预先选择；路线 A 依现行规则继续作为唯一有效门禁。启用路线 B 需真实决定并完成同版本规程修订。"
+  },
+  "pending_decisions": [
+    {
+      "decision_id": "GS-D1",
+      "topic": "首包资格路线（人工发布资格 vs 低风险私有 AI 审查试用资格）",
+      "status": "pending_human_decision",
+      "decided_by": "用户/负责人",
+      "issue_ref": null
+    },
+    {
+      "decision_id": "GS-D2",
+      "topic": "#2 人工盲法复核任务继续、缩小或延期",
+      "status": "pending_human_decision",
+      "decided_by": "用户/负责人",
+      "issue_ref": "https://github.com/lybym/ChildEvidence/issues/2",
+      "constraint": "AI 结果不得代替人工完成；保留原 Issue 历史与语义；不代填、不关闭、不冒充完成"
+    },
+    {
+      "decision_id": "GS-D3",
+      "topic": "#10 是否保留 Astra 模型限定",
+      "status": "pending_human_decision",
+      "decided_by": "用户/负责人",
+      "issue_ref": "https://github.com/lybym/ChildEvidence/issues/10",
+      "constraint": "按真实服务/环境/模型身份管理，不用平台名称泛化授权；改动须先明确变更目标；本文件不直接修改该 Issue"
+    },
+    {
+      "decision_id": "GS-D4",
+      "topic": "人格资产演进规程修订（KNOWLEDGE_GOVERNANCE §2 等）",
+      "status": "pending_human_decision",
+      "decided_by": "用户/负责人",
+      "issue_ref": "https://github.com/lybym/ChildEvidence/issues/11",
+      "constraint": "四份规程、AGENTS、治理契约同版本演进；保留批准历史与变更理由；不代签"
+    }
+  ],
+  "separation_dimensions": [
+    {
+      "id": "data_processing_permission",
+      "name_zh": "资料处理权限",
+      "definition": "哪些来源可被读取、解析、外发给模型；由权限登记与预检决定",
+      "distinct_from": "与审核来源分离：有权限处理不等于已审核，更不等于可发布",
+      "existing_basis": "AGENTS #6/#8；model_access 登记（POLICY_ACTIVE=False）；权限预检"
+    },
+    {
+      "id": "technical_validation",
+      "name_zh": "技术校验",
+      "definition": "结构、引用、哈希与可执行状态检查",
+      "distinct_from": "与科学评价分离：结构正确不等于科研结论成立",
+      "existing_basis": "contracts.md §1.1；manifest 哈希复算（KNOWLEDGE_GOVERNANCE §4）"
+    },
+    {
+      "id": "scientific_appraisal",
+      "name_zh": "科学评价",
+      "definition": "研究质量、偏倚、局限、不确定性与适用性评价",
+      "distinct_from": "与模型自信、审核来源、发布资格分开；允许争议与不足",
+      "existing_basis": "contracts.md §1.1 Appraisal；RESEARCH_METHODOLOGY 证据分级"
+    },
+    {
+      "id": "review_origin",
+      "name_zh": "审核来源",
+      "definition": "实际审核方式：AI / 单人 / 独立人工复核等，如实标记不伪造身份",
+      "distinct_from": "与发布资格分离：AI 一致性不能产生人工 Gold 或发布资格",
+      "existing_basis": "AGENTS #18；label-tiers 契约 LT-03/LT-04"
+    },
+    {
+      "id": "release_eligibility",
+      "name_zh": "发布资格",
+      "definition": "依据哪一版治理规则、允许什么用途、由何记录决定可发布",
+      "distinct_from": "与技术校验/科学评价分离：任一单项通过不构成发布资格",
+      "existing_basis": "KNOWLEDGE_GOVERNANCE §2–§4；本契约 GS-01..GS-05"
+    },
+    {
+      "id": "runtime_applicability",
+      "name_zh": "个体适用性",
+      "definition": "当前情境是否具备使用条件，由运行时决定",
+      "distinct_from": "与科研等级分离：个体适用性不得提升科研等级或证据强度",
+      "existing_basis": "contracts.md §1.1 runtime_applicability；AGENTS #4"
+    }
+  ],
+  "non_redundancy_rule": "一项检查只服务一个维度；禁止用重复执行同一检查充当另一维度的审批（不增加没有实际作用的重复审批）。",
+  "review_origin_families": {
+    "human": ["single_human", "independent_double_human", "adjudicated_human"],
+    "non_human": ["ai_draft", "multi_model_consistent"],
+    "ai_consistency_rule": "multi_model_consistent（多模型一致投票）属于非人工来源，不得产生或替代人工 Gold，不得获得发布资格（AGENTS #18；LT-03/LT-04；GS-02）"
+  },
+  "data_boundaries": {
+    "research_library": {
+      "definition": "科研文献库：SQLite 唯一事实源，追加式审计，不收儿童个人档案",
+      "constraints": ["subject_ref 必须为空（GS-06）", "审计记录只追加不删除（AGENTS #2）"]
+    },
+    "personal_growth_record": {
+      "definition": "个人成长记录：宿主管理落盘、授权、导出、纠正与删除",
+      "constraints": ["host_managed 与 correction_supported 必须为 true（GS-06）", "默认不回流科研库、训练或评测数据集（contracts.md §5）"]
+    }
+  },
+  "schema": {
+    "type": "object",
+    "required": ["record_id", "asset_kind", "asset_ref", "revision", "data_boundary", "decision_status"],
+    "properties": {
+      "record_id": {"type": "string", "minLength": 3},
+      "asset_kind": {"type": "string", "enum": ["evidence_pack", "support_method", "interaction_profile", "strategy"]},
+      "asset_ref": {"type": "string", "minLength": 3},
+      "revision": {"type": "integer"},
+      "data_boundary": {"type": "string", "enum": ["research_library", "personal_growth_record"]},
+      "basis_kind": {"type": ["string", "null"], "enum": ["direct_research", "research_synthesis", "application_inference", "design_choice", null]},
+      "basis_refs": {"type": "array", "items": {"type": "string"}},
+      "review_origin": {"type": ["string", "null"], "enum": ["ai_draft", "multi_model_consistent", "single_human", "independent_double_human", "adjudicated_human", null]},
+      "technical_validation": {"type": ["string", "null"], "enum": ["passed", "failed", "not_run", null]},
+      "scientific_appraisal": {"type": ["string", "null"], "enum": ["done", "pending", "none", null]},
+      "decision_status": {"type": "string", "enum": ["pending", "approved", "revoked"]},
+      "approved_by": {"type": ["string", "null"]},
+      "approved_date": {"type": ["string", "null"], "pattern": "^\\d{4}-\\d{2}-\\d{2}$"},
+      "decision_record_ref": {"type": ["string", "null"]},
+      "revoked_reason": {"type": ["string", "null"]},
+      "revoked_date": {"type": ["string", "null"], "pattern": "^\\d{4}-\\d{2}-\\d{2}$"},
+      "runtime_effect": {"type": ["string", "null"], "enum": ["new_version_release", "immediate", null]},
+      "evaluation_refs": {"type": "array", "items": {"type": "string"}},
+      "subject_ref": {"type": ["string", "null"]},
+      "host_managed": {"type": ["boolean", "null"]},
+      "correction_supported": {"type": ["boolean", "null"]},
+      "governance_doc_version": {"type": ["string", "null"]}
+    }
+  },
+  "validation_rules": [
+    {"rule_id": "GS-01", "expr": "decision_status == 'approved' implies approved_by 非空 and approved_date 匹配日期格式 and decision_record_ref 非空（发布资格必须指向真实人工决定记录）"},
+    {"rule_id": "GS-02", "expr": "review_origin in [ai_draft, multi_model_consistent] implies decision_status == 'pending'（AI 草稿与多模型一致投票永远停留在 pending；AI 一致性不能产生人工 Gold 或发布/撤回状态）"},
+    {"rule_id": "GS-03", "expr": "decision_status == 'revoked' implies revoked_reason 非空 and revoked_date 匹配日期格式 and decision_record_ref 非空（撤回是追加状态：保留原 asset_ref/revision、理由与日期，不删除历史）"},
+    {"rule_id": "GS-04", "expr": "asset_kind == 'interaction_profile' and revision > 1 implies evaluation_refs 非空 and basis_refs 非空 and runtime_effect == 'new_version_release'（人格更新必须可评测、有依据，且只能作为新版本发布生效，不直接改写运行行为）"},
+    {"rule_id": "GS-05", "expr": "decision_status == 'approved' implies technical_validation == 'passed' and scientific_appraisal == 'done'（未审核/未校验内容保持 pending，拒绝进入已发布状态）"},
+    {"rule_id": "GS-06", "expr": "data_boundary == 'research_library' implies subject_ref == null；data_boundary == 'personal_growth_record' implies host_managed == true and correction_supported == true（两类数据边界不得混用）"}
+  ],
+  "positive_examples": [
+    {
+      "record_id": "gs-rel-approved-demo-001",
+      "asset_kind": "evidence_pack",
+      "asset_ref": "pack-demo-synthesis@2",
+      "revision": 2,
+      "data_boundary": "research_library",
+      "basis_kind": "research_synthesis",
+      "basis_refs": ["card-demo-001", "card-demo-002"],
+      "review_origin": "independent_double_human",
+      "technical_validation": "passed",
+      "scientific_appraisal": "done",
+      "decision_status": "approved",
+      "approved_by": "knowledge-owner",
+      "approved_date": "2026-10-18",
+      "decision_record_ref": "GS-D1-approval-demo-record-001",
+      "revoked_reason": null,
+      "revoked_date": null,
+      "runtime_effect": "new_version_release",
+      "evaluation_refs": ["evalcase-demo-001"],
+      "subject_ref": null,
+      "host_managed": null,
+      "correction_supported": null,
+      "governance_doc_version": "GROWTH-SUPPORT-QUALIFICATION.md DRAFT 2026-10-18"
+    },
+    {
+      "record_id": "gs-rel-persona-pending-demo-001",
+      "asset_kind": "interaction_profile",
+      "asset_ref": "profile-demo-core@2",
+      "revision": 2,
+      "data_boundary": "research_library",
+      "basis_kind": "research_synthesis",
+      "basis_refs": ["synthesis-demo-001", "design-choice-demo-001"],
+      "review_origin": null,
+      "technical_validation": "passed",
+      "scientific_appraisal": "pending",
+      "decision_status": "pending",
+      "approved_by": null,
+      "approved_date": null,
+      "decision_record_ref": null,
+      "revoked_reason": null,
+      "revoked_date": null,
+      "runtime_effect": "new_version_release",
+      "evaluation_refs": ["evalcase-demo-persona-001"],
+      "subject_ref": null,
+      "host_managed": null,
+      "correction_supported": null,
+      "governance_doc_version": "GROWTH-SUPPORT-QUALIFICATION.md DRAFT 2026-10-18"
+    },
+    {
+      "record_id": "gs-rel-revoked-demo-001",
+      "asset_kind": "support_method",
+      "asset_ref": "method-demo-clarify@1",
+      "revision": 1,
+      "data_boundary": "research_library",
+      "basis_kind": "application_inference",
+      "basis_refs": ["inference-demo-001"],
+      "review_origin": "adjudicated_human",
+      "technical_validation": "passed",
+      "scientific_appraisal": "done",
+      "decision_status": "revoked",
+      "approved_by": "knowledge-owner",
+      "approved_date": "2026-10-10",
+      "decision_record_ref": "GS-REV-demo-001",
+      "revoked_reason": "复审发现适用边界收窄，旧版本保留并登记变更理由",
+      "revoked_date": "2026-10-18",
+      "runtime_effect": "new_version_release",
+      "evaluation_refs": ["evalcase-demo-002"],
+      "subject_ref": null,
+      "host_managed": null,
+      "correction_supported": null,
+      "governance_doc_version": "GROWTH-SUPPORT-QUALIFICATION.md DRAFT 2026-10-18"
+    },
+    {
+      "record_id": "gs-rel-personal-demo-001",
+      "asset_kind": "strategy",
+      "asset_ref": "plan-demo-support@1",
+      "revision": 1,
+      "data_boundary": "personal_growth_record",
+      "basis_kind": "design_choice",
+      "basis_refs": ["design-choice-demo-002"],
+      "review_origin": "single_human",
+      "technical_validation": "passed",
+      "scientific_appraisal": "pending",
+      "decision_status": "pending",
+      "approved_by": null,
+      "approved_date": null,
+      "decision_record_ref": null,
+      "revoked_reason": null,
+      "revoked_date": null,
+      "runtime_effect": "new_version_release",
+      "evaluation_refs": [],
+      "subject_ref": "demo-learner-A",
+      "host_managed": true,
+      "correction_supported": true,
+      "governance_doc_version": "GROWTH-SUPPORT-QUALIFICATION.md DRAFT 2026-10-18"
+    }
+  ],
+  "negative_examples": [
+    {
+      "description": "AI 一致性冒充人工批准：多模型一致投票直接 approved，即使填齐签署字段也必须拒绝（GS-02）",
+      "expected_rule_ids": ["GS-02"],
+      "record": {
+        "record_id": "gs-rel-bad-ai-consensus-001",
+        "asset_kind": "evidence_pack",
+        "asset_ref": "pack-demo-bad@1",
+        "revision": 1,
+        "data_boundary": "research_library",
+        "basis_kind": "direct_research",
+        "basis_refs": ["card-demo-003"],
+        "review_origin": "multi_model_consistent",
+        "technical_validation": "passed",
+        "scientific_appraisal": "done",
+        "decision_status": "approved",
+        "approved_by": "model-ensemble-demo",
+        "approved_date": "2026-10-18",
+        "decision_record_ref": "GS-BAD-demo-001",
+        "revoked_reason": null,
+        "revoked_date": null,
+        "runtime_effect": "new_version_release",
+        "evaluation_refs": ["evalcase-demo-003"],
+        "subject_ref": null,
+        "host_managed": null,
+        "correction_supported": null,
+        "governance_doc_version": "GROWTH-SUPPORT-QUALIFICATION.md DRAFT 2026-10-18"
+      }
+    },
+    {
+      "description": "未审核内容进入发布状态：人工来源但技术校验未跑、科学评价未做（GS-05）",
+      "expected_rule_ids": ["GS-05"],
+      "record": {
+        "record_id": "gs-rel-bad-unreviewed-001",
+        "asset_kind": "evidence_pack",
+        "asset_ref": "pack-demo-unreviewed@1",
+        "revision": 1,
+        "data_boundary": "research_library",
+        "basis_kind": "direct_research",
+        "basis_refs": ["card-demo-004"],
+        "review_origin": "adjudicated_human",
+        "technical_validation": "not_run",
+        "scientific_appraisal": "none",
+        "decision_status": "approved",
+        "approved_by": "knowledge-owner",
+        "approved_date": "2026-10-18",
+        "decision_record_ref": "GS-BAD-demo-002",
+        "revoked_reason": null,
+        "revoked_date": null,
+        "runtime_effect": "new_version_release",
+        "evaluation_refs": [],
+        "subject_ref": null,
+        "host_managed": null,
+        "correction_supported": null,
+        "governance_doc_version": "GROWTH-SUPPORT-QUALIFICATION.md DRAFT 2026-10-18"
+      }
+    },
+    {
+      "description": "approved 缺少签署记录（GS-01）",
+      "expected_rule_ids": ["GS-01"],
+      "record": {
+        "record_id": "gs-rel-bad-nosignoff-001",
+        "asset_kind": "support_method",
+        "asset_ref": "method-demo-bad@1",
+        "revision": 1,
+        "data_boundary": "research_library",
+        "basis_kind": "design_choice",
+        "basis_refs": ["design-choice-demo-003"],
+        "review_origin": "independent_double_human",
+        "technical_validation": "passed",
+        "scientific_appraisal": "done",
+        "decision_status": "approved",
+        "approved_by": null,
+        "approved_date": null,
+        "decision_record_ref": null,
+        "revoked_reason": null,
+        "revoked_date": null,
+        "runtime_effect": "new_version_release",
+        "evaluation_refs": [],
+        "subject_ref": null,
+        "host_managed": null,
+        "correction_supported": null,
+        "governance_doc_version": "GROWTH-SUPPORT-QUALIFICATION.md DRAFT 2026-10-18"
+      }
+    },
+    {
+      "description": "撤回缺少理由与日期（GS-03）",
+      "expected_rule_ids": ["GS-03"],
+      "record": {
+        "record_id": "gs-rel-bad-revoke-001",
+        "asset_kind": "support_method",
+        "asset_ref": "method-demo-revoked@1",
+        "revision": 1,
+        "data_boundary": "research_library",
+        "basis_kind": "design_choice",
+        "basis_refs": ["design-choice-demo-004"],
+        "review_origin": "adjudicated_human",
+        "technical_validation": "passed",
+        "scientific_appraisal": "done",
+        "decision_status": "revoked",
+        "approved_by": "knowledge-owner",
+        "approved_date": "2026-10-10",
+        "decision_record_ref": "GS-BAD-demo-003",
+        "revoked_reason": null,
+        "revoked_date": null,
+        "runtime_effect": "new_version_release",
+        "evaluation_refs": [],
+        "subject_ref": null,
+        "host_managed": null,
+        "correction_supported": null,
+        "governance_doc_version": "GROWTH-SUPPORT-QUALIFICATION.md DRAFT 2026-10-18"
+      }
+    },
+    {
+      "description": "人格更新无评测引用且声明直接改写运行行为（GS-04）",
+      "expected_rule_ids": ["GS-04"],
+      "record": {
+        "record_id": "gs-rel-bad-persona-001",
+        "asset_kind": "interaction_profile",
+        "asset_ref": "profile-demo-bad@2",
+        "revision": 2,
+        "data_boundary": "research_library",
+        "basis_kind": "direct_research",
+        "basis_refs": [],
+        "review_origin": null,
+        "technical_validation": "passed",
+        "scientific_appraisal": "pending",
+        "decision_status": "pending",
+        "approved_by": null,
+        "approved_date": null,
+        "decision_record_ref": null,
+        "revoked_reason": null,
+        "revoked_date": null,
+        "runtime_effect": "immediate",
+        "evaluation_refs": [],
+        "subject_ref": null,
+        "host_managed": null,
+        "correction_supported": null,
+        "governance_doc_version": "GROWTH-SUPPORT-QUALIFICATION.md DRAFT 2026-10-18"
+      }
+    },
+    {
+      "description": "科研库记录携带个人主体引用（GS-06）",
+      "expected_rule_ids": ["GS-06"],
+      "record": {
+        "record_id": "gs-rel-bad-boundary-001",
+        "asset_kind": "evidence_pack",
+        "asset_ref": "pack-demo-leak@1",
+        "revision": 1,
+        "data_boundary": "research_library",
+        "basis_kind": "direct_research",
+        "basis_refs": ["card-demo-005"],
+        "review_origin": "single_human",
+        "technical_validation": "passed",
+        "scientific_appraisal": "pending",
+        "decision_status": "pending",
+        "approved_by": null,
+        "approved_date": null,
+        "decision_record_ref": null,
+        "revoked_reason": null,
+        "revoked_date": null,
+        "runtime_effect": "new_version_release",
+        "evaluation_refs": [],
+        "subject_ref": "demo-learner-B",
+        "host_managed": null,
+        "correction_supported": null,
+        "governance_doc_version": "GROWTH-SUPPORT-QUALIFICATION.md DRAFT 2026-10-18"
+      }
+    },
+    {
+      "description": "个人记录未声明宿主管理与纠正能力（GS-06）",
+      "expected_rule_ids": ["GS-06"],
+      "record": {
+        "record_id": "gs-rel-bad-personal-001",
+        "asset_kind": "strategy",
+        "asset_ref": "plan-demo-orphan@1",
+        "revision": 1,
+        "data_boundary": "personal_growth_record",
+        "basis_kind": "design_choice",
+        "basis_refs": ["design-choice-demo-005"],
+        "review_origin": "single_human",
+        "technical_validation": "passed",
+        "scientific_appraisal": "pending",
+        "decision_status": "pending",
+        "approved_by": null,
+        "approved_date": null,
+        "decision_record_ref": null,
+        "revoked_reason": null,
+        "revoked_date": null,
+        "runtime_effect": "new_version_release",
+        "evaluation_refs": [],
+        "subject_ref": "demo-learner-C",
+        "host_managed": false,
+        "correction_supported": null,
+        "governance_doc_version": "GROWTH-SUPPORT-QUALIFICATION.md DRAFT 2026-10-18"
+      }
+    }
+  ]
+}

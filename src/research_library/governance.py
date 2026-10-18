@@ -11,6 +11,12 @@ Machine-checkable counterpart of the DRAFT v1.1 governance documents:
 - ``check_governance_docs(root)``: cross-file consistency checks over the four
   DRAFT v1.1 protocol documents, AGENTS.md, the governance documents and the
   POC errata pointer (see ``tests/test_governance_contracts.py``).
+- Growth-support qualification contracts (Issue #11, ``childevidence-gsgov-*``):
+  ``load_gs_contract``, ``validate_release_decision_record`` (rules GS-01…GS-06)
+  and ``check_growth_support_governance_docs`` cover the two-route comparison,
+  the six separation dimensions, pending decision register, release
+  eligibility / persona update / revocation / unreviewed-rejection rules and the
+  two data boundaries (see ``tests/test_growth_support_governance.py``).
 
 This module validates *contract files*; it never mutates data, the database or
 the protocol documents. All DRAFT governance documents remain pending human
@@ -45,6 +51,25 @@ CONTRACT_FILES = {
     "label-tiers": "CE-01R-label-tiers.contract.json",
     "poc-metrics-latest": "CE-01R-poc-metrics-latest.json",
 }
+
+# Issue #11 growth-support governance contracts (separate envelope family).
+GS_CONTRACT_FILES = {
+    "gs-qualification": "CE-GS-01-qualification-decisions.contract.json",
+}
+
+GS_DECISION_DOC = "docs/governance/GROWTH-SUPPORT-QUALIFICATION.md"
+
+HUMAN_REVIEW_ORIGINS = ("single_human", "independent_double_human", "adjudicated_human")
+NON_HUMAN_REVIEW_ORIGINS = ("ai_draft", "multi_model_consistent")
+
+GS_SEPARATION_DIMENSION_IDS = (
+    "data_processing_permission",
+    "technical_validation",
+    "scientific_appraisal",
+    "review_origin",
+    "release_eligibility",
+    "runtime_applicability",
+)
 
 
 # ---------------------------------------------------------------------------
@@ -214,6 +239,123 @@ def validate_label_record(record: dict) -> list[str]:
             errors.append("LT-03: gold requires human sign-off (by + date)")
     if kind in ("model", "rule") and tier in ("provisional", "gold"):
         errors.append("LT-04: model/rule output must not self-confirm provisional/gold")
+    return errors
+
+
+# ---------------------------------------------------------------------------
+# Growth-support qualification contracts (Issue #11, GS-01…GS-06)
+# ---------------------------------------------------------------------------
+
+
+def load_gs_contract(name: str):
+    """Load a growth-support governance contract by short name.
+
+    Separate envelope family from the CE-01R contracts: schema names start
+    with ``childevidence-gsgov-`` and the status must declare a pending human
+    *decision* (these contracts record decisions that have not been made).
+    """
+    path = CONTRACTS_DIR / GS_CONTRACT_FILES[name]
+    data = load_json(path)
+    errors: list[str] = []
+    if not isinstance(data, dict):
+        errors.append(f"{path.name}: contract root is not an object")
+        return data, errors
+    if data.get("$schema_version") != 1:
+        errors.append(f"{path.name}: unsupported $schema_version {data.get('$schema_version')!r}")
+    if not data.get("$schema_name", "").startswith("childevidence-gsgov-"):
+        errors.append(f"{path.name}: unexpected $schema_name {data.get('$schema_name')!r}")
+    if "status" not in data:
+        errors.append(f"{path.name}: missing status header (pending-decision marker)")
+    elif "pending human decision" not in data["status"]:
+        errors.append(f"{path.name}: status must declare 'pending human decision'")
+    return data, errors
+
+
+def validate_release_decision_record(record: dict) -> list[str]:
+    """Validate one release/qualification decision record against GS-01…GS-06.
+
+    Encodes the executable positive/negative acceptance criteria of Issue #11:
+    release eligibility evidence (GS-01), AI-consistency never yields approval
+    (GS-02), auditable revocation (GS-03), evaluable persona version updates
+    that never rewrite runtime behaviour directly (GS-04), unreviewed-content
+    rejection (GS-05) and the two data boundaries (GS-06).
+    """
+    contract, errors = load_gs_contract("gs-qualification")
+    validate_with_embedded_schema(record, contract, errors, "release_decision_record")
+    status = record.get("decision_status")
+    origin = record.get("review_origin")
+    if status == "approved":
+        if (
+            not record.get("approved_by")
+            or not record.get("approved_date")
+            or not record.get("decision_record_ref")
+        ):
+            errors.append(
+                "GS-01: approved requires approved_by, approved_date and decision_record_ref"
+            )
+        if record.get("technical_validation") != "passed" or record.get("scientific_appraisal") != "done":
+            errors.append(
+                "GS-05: approved requires technical_validation=passed and "
+                "scientific_appraisal=done; unreviewed content must stay pending"
+            )
+    if origin in NON_HUMAN_REVIEW_ORIGINS and status != "pending":
+        errors.append(
+            "GS-02: ai_draft/multi_model_consistent review origin can never reach "
+            "approved or revoked; AI consistency is not human gold (AGENTS #18, LT-03/LT-04)"
+        )
+    if status == "revoked":
+        if not record.get("revoked_reason") or not record.get("revoked_date"):
+            errors.append("GS-03: revoked requires revoked_reason and revoked_date")
+        if not record.get("decision_record_ref"):
+            errors.append("GS-03: revoked requires decision_record_ref for the audit trail")
+    if (
+        record.get("asset_kind") == "interaction_profile"
+        and isinstance(record.get("revision"), int)
+        and record["revision"] > 1
+    ):
+        if not record.get("evaluation_refs") or not record.get("basis_refs"):
+            errors.append(
+                "GS-04: interaction_profile version update requires basis_refs and evaluation_refs"
+            )
+        if record.get("runtime_effect") != "new_version_release":
+            errors.append(
+                "GS-04: interaction_profile updates take effect only as a new version "
+                "release, never as an immediate runtime rewrite"
+            )
+    boundary = record.get("data_boundary")
+    if boundary == "research_library" and record.get("subject_ref") is not None:
+        errors.append("GS-06: research_library records must not carry a personal subject_ref")
+    if boundary == "personal_growth_record":
+        if record.get("host_managed") is not True or record.get("correction_supported") is not True:
+            errors.append(
+                "GS-06: personal_growth_record requires host_managed and "
+                "correction_supported (host-owned correction/deletion)"
+            )
+    return errors
+
+
+def _gs_rule_ids(error_list: list[str]) -> list[str]:
+    return sorted({e.split(":", 1)[0] for e in error_list if e.startswith("GS-")})
+
+
+def check_gs_contract_examples(contract: dict) -> list[str]:
+    """Validate positive examples (must pass) and negative examples (must fail
+    with exactly the declared GS rule ids) of the qualification contract."""
+    errors: list[str] = []
+    for ex in contract.get("positive_examples", []):
+        found = validate_release_decision_record(ex)
+        if found:
+            errors.append(f"positive example {ex.get('record_id')!r}: {found}")
+    for ex in contract.get("negative_examples", []):
+        record = ex.get("record", {})
+        found = validate_release_decision_record(record)
+        got = _gs_rule_ids(found)
+        expected = sorted(ex.get("expected_rule_ids", []))
+        if got != expected:
+            errors.append(
+                f"negative example {record.get('record_id')!r}: expected rules {expected}, "
+                f"got {got} (full: {found})"
+            )
     return errors
 
 
@@ -414,5 +556,101 @@ def check_governance_docs(root: Path | None = None) -> tuple[list[str], list[str
             errors.append("CHECKLIST: missing no-auto-sign guard")
         if re.search(r"\|\s*(APPROVE)\s*\|", checklist):
             errors.append("CHECKLIST: an APPROVE decision appears to be pre-filled")
+
+    # 5) Growth-support qualification decision doc + contract (Issue #11).
+    gs_errors, gs_warnings = check_growth_support_governance_docs(root)
+    errors.extend(gs_errors)
+    warnings.extend(gs_warnings)
+
+    return errors, warnings
+
+
+# ---------------------------------------------------------------------------
+# Growth-support qualification decision documents (Issue #11)
+# ---------------------------------------------------------------------------
+
+
+def check_growth_support_governance_docs(root: Path | None = None) -> tuple[list[str], list[str]]:
+    """Consistency checks for the Issue #11 qualification decision document.
+
+    Verifies that ``GROWTH-SUPPORT-QUALIFICATION.md`` stays a pending-decision
+    record (no forged approvals, no self-declared effectiveness), records the
+    two-route comparison without preselecting the AI review trial route, keeps
+    the six separation dimensions, registers the pending decisions for #2/#10
+    with their original semantics preserved, and that the machine-checkable
+    contract examples stay consistent with the GS rules.
+    """
+    root = root or ROOT
+    errors: list[str] = []
+    warnings: list[str] = []
+
+    try:
+        text = _read(root, GS_DECISION_DOC)
+    except OSError as exc:
+        return [f"{GS_DECISION_DOC}: unreadable ({exc})"], warnings
+
+    if "pending_human_decision" not in text:
+        errors.append("GS doc: missing pending_human_decision status markers")
+    if "不代签" not in text:
+        errors.append("GS doc: missing no-proxy-signature statement")
+    if "已生效" in text:
+        errors.append("GS doc: must not declare itself effective")
+    if re.search(r"\|\s*APPROVE\s*\|", text):
+        errors.append("GS doc: a pre-filled APPROVE decision appears")
+
+    for marker in ("人工发布资格", "AI 审查试用", "未预先选择"):
+        if marker not in text:
+            errors.append(f"GS doc: route comparison missing {marker!r}")
+
+    for dim in ("资料处理权限", "技术校验", "科学评价", "审核来源", "发布资格", "个体适用性"):
+        if dim not in text:
+            errors.append(f"GS doc: separation dimension missing {dim!r}")
+
+    for issue_no, marker in ((2, "继续、缩小或延期"), (10, "Astra")):
+        url = f"https://github.com/lybym/ChildEvidence/issues/{issue_no}"
+        if url not in text:
+            errors.append(f"GS doc: missing full issue URL {url}")
+        if marker not in text:
+            errors.append(f"GS doc: pending decision #{issue_no} missing marker {marker!r}")
+
+    if "CE-GS-01-qualification-decisions.contract.json" not in text:
+        errors.append("GS doc: missing pointer to the machine-checkable contract")
+    if "不改写" not in text or "保留旧版本" not in text:
+        errors.append("GS doc: missing history-preservation / rollback statement")
+    if "验证范围" not in text:
+        errors.append("GS doc: missing verification-scope statement")
+
+    contract_path = root / "docs" / "governance" / "contracts" / GS_CONTRACT_FILES["gs-qualification"]
+    if not contract_path.exists():
+        errors.append(f"contracts: missing {GS_CONTRACT_FILES['gs-qualification']}")
+        return errors, warnings
+
+    if root == ROOT:
+        contract, cerr = load_gs_contract("gs-qualification")
+        for e in cerr:
+            errors.append(f"{GS_CONTRACT_FILES['gs-qualification']}: {e}")
+        if not cerr:
+            route_decision = contract.get("route_decision", {})
+            if route_decision.get("preselected") is not False:
+                errors.append("gs-qualification: AI review trial route must not be preselected")
+            if route_decision.get("status") != "pending_human_decision":
+                errors.append("gs-qualification: route decision must be pending_human_decision")
+            pending = contract.get("pending_decisions", [])
+            ids = [d.get("decision_id") for d in pending]
+            if sorted(ids) != ["GS-D1", "GS-D2", "GS-D3", "GS-D4"]:
+                errors.append(f"gs-qualification: pending decision register must be GS-D1..D4, got {ids}")
+            if any(d.get("status") != "pending_human_decision" for d in pending):
+                errors.append("gs-qualification: all registered decisions must stay pending_human_decision")
+            dims = [d.get("id") for d in contract.get("separation_dimensions", [])]
+            if sorted(dims) != sorted(GS_SEPARATION_DIMENSION_IDS):
+                errors.append(f"gs-qualification: separation dimensions mismatch, got {dims}")
+            families = contract.get("review_origin_families", {})
+            human = set(families.get("human", []))
+            non_human = set(families.get("non_human", []))
+            if human != set(HUMAN_REVIEW_ORIGINS) or non_human != set(NON_HUMAN_REVIEW_ORIGINS):
+                errors.append("gs-qualification: review origin families do not match the declared values")
+            if human & non_human:
+                errors.append("gs-qualification: human and non-human review origins overlap")
+            errors.extend(check_gs_contract_examples(contract))
 
     return errors, warnings
