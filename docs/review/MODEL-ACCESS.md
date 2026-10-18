@@ -41,4 +41,8 @@ python .agents/skills/child-evidence-reviewer/scripts/validate_review.py preflig
 python .agents/skills/child-evidence-reviewer/scripts/validate_review.py validate --review <candidate-review.json> --provenance <candidate-provenance.json>
 ```
 
+上述链路的确定性包装（条件预检、受保护资产哈希核对与 #10 九件产物契约）见
+[ASTRA-PILOT](ASTRA-PILOT.md)：`python -m research_library.astra_pilot precheck|run|complete …`；
+运行器不激活门禁、不调用模型、不替代登记与人工复核。
+
 科研门禁不变：silver/L0、not_reviewed、禁止人工 Gold、approved 或 Agent 发布。历史 blocked 审查不改写。
