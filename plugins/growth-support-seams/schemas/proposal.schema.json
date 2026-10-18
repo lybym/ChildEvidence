@@ -1,0 +1,27 @@
+{
+  "description": "ce_validate_support_proposal arguments — registry-facing subset mirror of plugins/growth-support-seams/lib/controlled-core.js PROPOSAL_SCHEMA. action_kind is a plain string on purpose: unknown kinds must reach the core and be refused with the unknown value preserved (unknown preservation), not silently dropped by the schema layer.",
+  "$id": "ce.support-proposal.draft-0.1",
+  "type": "object",
+  "required": ["request_id", "session_ref", "subject_ref", "authorization_ref", "state_revision", "proposal"],
+  "properties": {
+    "request_id": { "type": "string" },
+    "session_ref": { "type": "string" },
+    "subject_ref": { "type": "string" },
+    "authorization_ref": { "type": "string" },
+    "state_revision": { "type": "integer" },
+    "proposal": {
+      "type": "object",
+      "required": ["action_id", "action_kind", "content", "method_ref"],
+      "properties": {
+        "action_id": { "type": "string" },
+        "action_kind": { "type": "string" },
+        "content": { "type": "string" },
+        "method_ref": { "type": "string" }
+      }
+    },
+    "prior_decline": {
+      "type": "object",
+      "properties": { "declined": { "type": "boolean" } }
+    }
+  }
+}

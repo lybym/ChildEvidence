@@ -1,0 +1,19 @@
+{
+  "description": "SupportResult (contracts.md §4, draft-0.1) — registry-facing subset mirror of plugins/growth-support-seams/lib/controlled-core.js SUPPORT_RESULT_SCHEMA. next_action is omitted entirely when the status carries none.",
+  "$id": "ce.support-result.draft-0.1",
+  "type": "object",
+  "required": ["schema_version", "request_id", "status", "validation", "provenance"],
+  "properties": {
+    "schema_version": { "type": "string", "enum": ["ce.support-result.draft-0.1"] },
+    "request_id": { "type": "string" },
+    "session_ref": { "type": "string" },
+    "subject_ref": { "type": "string" },
+    "status": { "type": "string", "enum": ["needs_information", "proposal_ready", "paused", "out_of_scope", "blocked", "degraded"] },
+    "understanding": { "type": "object" },
+    "next_action": { "type": "object" },
+    "presentation_constraints": { "type": "object" },
+    "review_plan": { "type": "object" },
+    "validation": { "type": "object" },
+    "provenance": { "type": "object" }
+  }
+}

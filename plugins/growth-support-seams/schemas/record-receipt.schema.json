@@ -1,0 +1,25 @@
+{
+  "description": "ce_record_support_outcome result receipt — registry-facing subset mirror of plugins/growth-support-seams/lib/controlled-core.js RECORD_RECEIPT_SCHEMA.",
+  "$id": "ce.support-receipt.draft-0.1",
+  "type": "object",
+  "required": ["schema_version", "request_id", "action_id", "subject_ref", "receipt", "validation"],
+  "properties": {
+    "schema_version": { "type": "string", "enum": ["ce.support-record.draft-0.1"] },
+    "request_id": { "type": "string" },
+    "action_id": { "type": "string" },
+    "session_ref": { "type": "string" },
+    "subject_ref": { "type": "string" },
+    "receipt": {
+      "type": "object",
+      "required": ["outcome_kind", "success_written", "idempotent", "record_count_for_subject", "revision_after"],
+      "properties": {
+        "outcome_kind": { "type": "string" },
+        "success_written": { "type": "boolean" },
+        "idempotent": { "type": "boolean" },
+        "record_count_for_subject": { "type": "integer" },
+        "revision_after": { "type": "integer" }
+      }
+    },
+    "validation": { "type": "object" }
+  }
+}

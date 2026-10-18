@@ -1,0 +1,58 @@
+# ChildEvidence growth-support seam verification bundle (Issue #13).
+#
+# Declares the synthetic controlled-flow plugin over the shipped host's tool
+# seam. Everything below is demo-* fixture data defined in this repository;
+# it grants no real authorization, no real publication eligibility and no
+# real child/research access. Override or extend through a profile patch
+# (matched by entry id ce-growth-support-seams) or a --patch overlay.
+#
+# receipt_dir is intentionally absent: load/unload receipts are enabled by a
+# verification overlay, not by default.
+
+- insert:
+    - id: ce-growth-support-seams
+      name: ce-growth-support-seams
+      config:
+        authorized_scopes:
+          - scope_ref: demo-host-scope-A
+            subject_ref: demo-learner-A
+            allow:
+              - prepare
+              - validate
+              - record
+              - audit
+          - scope_ref: demo-host-scope-B
+            subject_ref: demo-learner-B
+            allow:
+              - prepare
+              - validate
+              - record
+              - audit
+          - scope_ref: demo-host-scope-A-observer
+            subject_ref: demo-learner-A
+            allow:
+              - prepare
+              - audit
+        methods:
+          - ref: demo-method-clarify@1
+            basis_kind: design_choice
+            intents:
+              - help_with_current_task
+            action_kinds:
+              - ask_clarification
+              - offer_choice
+            required_info:
+              - task_understanding
+            unknowns:
+              - child_understanding_of_task
+              - attempts_so_far
+          - ref: demo-method-explore@1
+            basis_kind: design_choice
+            intents:
+              - explore_interest
+            action_kinds:
+              - offer_choice
+              - request_feedback
+            required_info: []
+            unknowns:
+              - interest_persistence_vs_novelty
