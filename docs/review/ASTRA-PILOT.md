@@ -15,7 +15,7 @@
 运行器是 [MODEL-ACCESS §供 #10 的可复现运行步骤](MODEL-ACCESS.md) 中
 register → prepare → preflight → validate 链路之上的**确定性本地编排**：
 
-1. 把 Issue #10 的验收要求机器化为 12 项条件预检（§2）；
+1. 把 Issue #10 的验收要求机器化为 13 项条件预检（§2）；
 2. 在每次尝试前后对受保护资产做 SHA-256 快照核对（原件、主库、人工标注/Gold、
    生产导出、既有登记与审计、历史试运行记录；§4）；
 3. 条件全部满足时经 `model_access.prepare` 构建获准最小包并核验绑定
@@ -25,8 +25,10 @@ register → prepare → preflight → validate 链路之上的**确定性本地
 6. 缺批准环境 / 实际模型 / 输入可用性即 BLOCKED，并完整记录缺失清单——
    **BLOCKED 是如实结果，不是工具失败，更不是科研 PASS**。
 
-运行器自身无网络、无模型调用、无数据库写入；目录名沿用 Issue #10 规定的
-`data/review/astra-pilot/`，`requested_model_id` 按每次调用显式传参记录。
+运行器自身无网络、无模型调用、无数据库写入；产物根目录沿用 Issue #10 规定的
+`data/review/astra-pilot/`（默认布局）；自定义 `CHILDEVIDENCE_DATA_DIR` 时为该
+数据目录同级的 `review/astra-pilot/`，两种布局下都始终位于库数据目录与
+model-access 目录之外。`requested_model_id` 按每次调用显式传参记录。
 
 ## 2. 条件预检（`precheck`，只读）
 
@@ -68,19 +70,22 @@ AI 草稿始终 `silver`/`L0`/`not_reviewed`/`allowed_for_agent_release=false`�
 ## 4. 受保护资产（验收：原件/主库/人工标注/生产知识包不修改）
 
 尝试前快照、尝试后逐一复算 SHA-256，任何变化即 FAIL（`protected_asset_modified`）：
-库 `library.sqlite`、`data/review/annotations.sqlite`（如存在）、该 Work 原件 PDF、
-`model-access/permissions.json` 与既有审计文件、`astra-pilot/` 下全部既有文件、
-`exports/` 生产导出。运行器只写入全新 `<run_id>` 目录或 `.ready/.blocked/.failed`
-标记文件，不改写任何历史记录。
+库 `library.sqlite`、人工标注库 `annotations.sqlite`（两个约定候选位置，如存在：
+CLI 默认 `<data_dir>/review/annotations.sqlite` 与数据根 `review/annotations.sqlite`）、
+该 Work 原件 PDF、`model-access/permissions.json` 与既有审计文件、
+`astra-pilot/` 下全部既有文件、`exports/` 生产导出。运行器只写入全新 `<run_id>`
+目录或 `.ready`/`.failed` 标记文件，不改写任何历史记录；`.ready` 标记在终态
+（completed/failed）后关闭移除，之后重跑 `complete` 得到显式的"已终态"错误，
+而不是 FileExistsError 崩溃窗口或部分覆盖。
 
 ## 5. verdict 与 FAIL/BLOCKED 语义
 
 | verdict | 触发 |
 |---|---|
-| `blocked` | 任一条件缺失；或条件满足但 `prepare` 仍拒绝。产物/标记文件完整记录缺失清单 |
-| `ready_for_reviewer_session` | 条件全满足、获准包构建并核验通过；写 `<run_id>.ready.json`（含包绑定），等待会话产出候选 |
-| `completed` | 候选通过 silver/L0/not_reviewed 门、run_id 绑定、`review_contract` 全量校验并 finalize；九件产物齐备 |
-| `failed` | 校验失败（映射 `hallucinated_or_unverifiable_citation`、`unauthorized_content_use`、`gold_upgrade_attempted`、`run_id_mismatch` 等）、或受保护资产变化 |
+| `blocked` | 任一条件缺失；或条件满足但 `prepare` 仍拒绝。两种情况均写九件产物目录 `<run_id>/`，完整记录缺失清单 |
+| `ready_for_reviewer_session` | 条件全满足、获准包构建并核验通过；写 `<run_id>.ready.json`（含包绑定），等待会话产出候选；终态后该标记关闭移除 |
+| `completed` | 候选通过 silver/L0/not_reviewed 门、run_id 绑定、暂存包绑定核对（候选 provenance 的 `model_access_package` 源必须就是 ready 标记记录的获准包，不符即 FAIL `package_binding_mismatch`）、`review_contract` 全量校验并 finalize；九件产物齐备，完成后关闭 ready 标记 |
+| `failed` | 校验失败（映射 `hallucinated_or_unverifiable_citation`、`unauthorized_content_use`、`gold_upgrade_attempted`、`run_id_mismatch`、`package_binding_mismatch` 等）、或受保护资产变化；`.failed.json` 为终态记录，重跑 `complete` 直接拒绝 |
 
 ## 6. 运行步骤（激活后同一命令序列即真实链路）
 

@@ -65,8 +65,16 @@ def now_utc():
 
 
 def output_root():
-    data = default_data_dir()
-    return data.parent / "review/astra-pilot" if data.name == "research-library" else data / "review/astra-pilot"
+    """Artifact root: ``review/astra-pilot`` beside the library data directory.
+
+    The default layout (``data/research-library``) resolves to the Issue-#10
+    location ``data/review/astra-pilot``; a custom ``CHILDEVIDENCE_DATA_DIR``
+    resolves to the sibling ``review/astra-pilot`` of that data directory, so
+    the documented run steps work in every layout and the root always stays
+    outside the library data and model-access directories, as required by
+    ``_require_safe_output_root`` and ``review_contract.finalize``.
+    """
+    return default_data_dir().parent / "review/astra-pilot"
 
 
 def load_work(library_db, work_id):
@@ -206,7 +214,13 @@ def protected_assets(*, pdf_path=None, library_db=None, access_directory=None, o
     library_db = Path(library_db) if library_db else default_data_dir() / "library.sqlite"
     access_directory = Path(access_directory) if access_directory else model_access.root()
     out_root = Path(out_root) if out_root else output_root()
-    paths = [library_db, library_db.parent.parent / "review/annotations.sqlite"]
+    library_dir = Path(library_db).parent
+    # Protect every convention-valid annotation store location: the CLI default
+    # (<data_dir>/review/annotations.sqlite, research_library.annotation) and
+    # the documented data-root location. Missing paths are skipped by the hash
+    # step, so protection is widened, never silently narrowed.
+    paths = [library_db, library_dir / "review/annotations.sqlite",
+             library_dir.parent / "review/annotations.sqlite"]
     if pdf_path:
         paths.append(Path(pdf_path))
     if (access_directory / "permissions.json").exists():
@@ -259,7 +273,9 @@ def _base_audit(run_id, *, work_id, mode, scope, environment, requested_model_id
         "mode": mode,
         "scope": scope,
         "requested_model_id": requested_model_id,
-        "actual_model_id": model_id if isinstance(model_id, str) and model_id.strip() else None,
+        # The actual identity is claimed only together with verifiable evidence
+        # (docstring contract); an unevidenced id stays null, never "unknown but named".
+        "actual_model_id": model_id if verified else None,
         "model_identity_evidence": model_identity_evidence if verified else None,
         "actual_identity_status": "verified" if verified else "unknown",
         "model_review_performed": False,
@@ -473,8 +489,11 @@ def run_attempt(work_id, *, mode="appraise", scope="article_text", environment=N
     if prepare_result["decision"] != "allowed":
         audit["verdict"] = BLOCKED
         audit["blocked_reasons"] = ["package_preparation_blocked: " + prepare_result["reason"]]
-        out_root.mkdir(parents=True, exist_ok=True)
-        return _finish(audit, before, marker=out_root / (run_id + ".blocked.json"))
+        # Same record form as any other blocked attempt: the nine-artifact run
+        # directory, not a bare marker file that downstream consumers of
+        # data/review/astra-pilot/<run_id>/ would miss.
+        return _finish(audit, before, target=out_root / run_id, library_db=library_db,
+                       out_root=out_root)
     binding = model_access.verify_package(prepare_result["package_path"])
     audit["package"] = {"run_id": prepare_result["run_id"], "path": prepare_result["package_path"],
                         "output_sha256": prepare_result["output_sha256"], "binding_verified": True,
@@ -493,12 +512,30 @@ def complete(run_id, review_path, provenance_path, *, library_db=None, access_di
     access_directory = Path(access_directory) if access_directory else model_access.root()
     out_root = Path(out_root) if out_root else output_root()
     _require_safe_output_root(out_root, library_db.parent, access_directory)
+    final_dir = out_root / run_id
+    if (out_root / (run_id + ".failed.json")).exists():
+        raise PilotError("run " + run_id + " already recorded a failed outcome; "
+                         "a corrected attempt requires a new run")
+    if final_dir.exists():
+        raise PilotError("run " + run_id + " already has finalized artifacts; "
+                         "recorded outcomes are never overwritten")
     marker = out_root / (run_id + ".ready.json")
     if not marker.exists():
         raise PilotError("no ready marker for run " + run_id)
     ready = model_access.read(marker)
     if ready.get("verdict") != READY:
         raise PilotError("run " + run_id + " is not awaiting a reviewer session")
+
+    def close_ready_marker():
+        # Terminal lifecycle: the durable record (run directory or .failed.json)
+        # is written before the ready marker closes, so a rerun hits the explicit
+        # terminal checks above instead of the old FileExistsError crash window.
+        # Best-effort: a failed unlink cannot corrupt the terminal record.
+        try:
+            marker.unlink(missing_ok=True)
+        except OSError:
+            pass
+
     before = dict(ready.get("protected_before", {}))
     review = contract.read_json(review_path)
     provenance = contract.read_json(provenance_path)
@@ -514,20 +551,40 @@ def complete(run_id, review_path, provenance_path, *, library_db=None, access_di
         fail_codes.append("gold_upgrade_attempted")
     if review.get("run_id") != run_id or provenance.get("run_id") != run_id:
         fail_codes.append("run_id_mismatch")
+    # Bind the candidate to the package staged by THIS run (recorded in the
+    # ready marker), not merely to any currently-registered package that the
+    # candidate itself declares: otherwise audit.json and provenance.json in
+    # the same run directory can attribute one review to two different packages.
+    staged = ready.get("package") if isinstance(ready.get("package"), dict) else {}
+    sources = provenance.get("sources") if isinstance(provenance, dict) else None
+    bound = [s for s in sources if isinstance(s, dict) and s.get("kind") == "model_access_package"] \
+        if isinstance(sources, list) else []
+    try:
+        bound = bound[0] if (len(bound) == 1 and bound[0].get("selector") == staged.get("run_id")
+                             and bound[0].get("sha256") == staged.get("output_sha256")
+                             and Path(bound[0]["path"]).resolve() == Path(staged["path"]).resolve()) else None
+    except (OSError, ValueError, TypeError):
+        bound = None
+    if bound is None:
+        fail_codes.append("package_binding_mismatch")
     errors = [] if fail_codes else contract.validate(review, provenance)
     if fail_codes or errors:
         audit["verdict"] = FAILED
         audit["fail_codes"] = sorted(set(fail_codes + _error_codes(errors)))
         audit["validation"] = {"validator_version": contract.VERSION, "errors": errors}
         out_root.mkdir(parents=True, exist_ok=True)
-        return _finish(audit, before, marker=out_root / (run_id + ".failed.json"))
+        failed = _finish(audit, before, marker=out_root / (run_id + ".failed.json"))
+        close_ready_marker()
+        return failed
     changed = verify_protected(before)
     if changed:
         audit["verdict"] = FAILED
         audit["fail_codes"] = ["protected_asset_modified"]
         audit["protected_modified"] = changed
         out_root.mkdir(parents=True, exist_ok=True)
-        return _finish(audit, before, marker=out_root / (run_id + ".failed.json"))
+        failed = _finish(audit, before, marker=out_root / (run_id + ".failed.json"))
+        close_ready_marker()
+        return failed
     target = contract.finalize(review, provenance, output_root=out_root)
     audit["verdict"] = COMPLETED
     audit["model_review_performed"] = bool(review.get("model_review_performed"))
@@ -538,7 +595,9 @@ def complete(run_id, review_path, provenance_path, *, library_db=None, access_di
     _write_text(target / "evidence-card.md", evidence_card_md(audit, review))
     _write_text(target / "appraisal.md", appraisal_md(audit, review))
     _write_text(target / "uncertainty.md", uncertainty_md(audit, review))
-    return _finish(audit, before, target=target)
+    finished = _finish(audit, before, target=target)
+    close_ready_marker()
+    return finished
 
 
 def main(argv=None):

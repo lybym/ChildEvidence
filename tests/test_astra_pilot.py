@@ -41,16 +41,7 @@ class AstraPilotTests(unittest.TestCase):
         self.source.write_text(self.text, encoding="utf-8")
         self.access_dir = self.root / "review" / "model-access"
         self.library_db = self.root / "research-library" / "library.sqlite"
-        self.library_db.parent.mkdir(parents=True)
-        with closing(sqlite3.connect(self.library_db)) as conn:
-            conn.execute("CREATE TABLE works(" + ",".join(pilot.WORK_FIELDS) + ")")
-            placeholders = ",".join("?" * len(pilot.WORK_FIELDS))
-            conn.execute(
-                f"INSERT INTO works VALUES({placeholders})",
-                ("lt-test", "10.1234/fixture", "Fixture Work (synthetic, not a real publication)",
-                 "en", 2020, "crossref_verified", "CC-BY-4.0", "published_version",
-                 str(self.pdf), access.sha(self.pdf), "pdf_downloaded"))
-            conn.commit()
+        self.make_library(self.library_db)
         self.out_root = self.root / "review" / "astra-pilot"
         self.ranges = [[0, self.allowed_end]]
         self.record = dict(work_id="lt-test", pdf_sha256=access.sha(self.pdf),
@@ -63,6 +54,18 @@ class AstraPilotTests(unittest.TestCase):
                                          ranges=self.ranges)])
 
     # ---------- helpers ----------
+
+    def make_library(self, db_path):
+        db_path.parent.mkdir(parents=True, exist_ok=True)
+        with closing(sqlite3.connect(db_path)) as conn:
+            conn.execute("CREATE TABLE works(" + ",".join(pilot.WORK_FIELDS) + ")")
+            placeholders = ",".join("?" * len(pilot.WORK_FIELDS))
+            conn.execute(
+                f"INSERT INTO works VALUES({placeholders})",
+                ("lt-test", "10.1234/fixture", "Fixture Work (synthetic, not a real publication)",
+                 "en", 2020, "crossref_verified", "CC-BY-4.0", "published_version",
+                 str(self.pdf), access.sha(self.pdf), "pdf_downloaded"))
+            conn.commit()
 
     def register(self, **changes):
         access.register(dict(self.record, **changes), self.access_dir)
@@ -83,9 +86,10 @@ class AstraPilotTests(unittest.TestCase):
         with patch.object(access, "POLICY_ACTIVE", True):
             return self.attempt(**self.ready_args())
 
-    def candidate(self, ready):
-        source = contract.preflight(ready["package"]["path"], "model_access_package",
-                                    selector=ready["package"]["run_id"],
+    def candidate(self, ready, package=None):
+        package = package if package is not None else ready["package"]
+        source = contract.preflight(package["path"], "model_access_package",
+                                    selector=package["run_id"],
                                     license_id="CC-BY-4.0", access_basis="unknown")
         review, prov = contract.make_demo("appraise", [source])
         review.update(model_review_performed=True, execution_kind="harness_session",
@@ -222,6 +226,8 @@ class AstraPilotTests(unittest.TestCase):
         self.assertTrue(marker.is_file())
         self.assertFalse(self.run_dir_of(ready).exists())
         self.assertTrue(ready["package"]["binding_verified"])
+        self.assertEqual(ACTUAL, ready["actual_model_id"])
+        self.assertEqual(EVIDENCE, ready["model_identity_evidence"])
         package = access.read(ready["package"]["path"])
         self.assertEqual(ACTUAL, package["model_id"])
         self.assertEqual(REQUESTED, package["requested_model_id"])
@@ -240,6 +246,7 @@ class AstraPilotTests(unittest.TestCase):
         self.assertEqual(pilot.COMPLETED, audit["verdict"])
         run_dir = self.run_dir_of(audit)
         self.assertEqual(set(pilot.ARTIFACTS), {path.name for path in run_dir.iterdir()})
+        self.assertFalse((self.out_root / (ready["run_id"] + ".ready.json")).exists())
         validation = json.loads((run_dir / "validation.json").read_text(encoding="utf-8"))
         self.assertTrue(validation["valid"])
         persisted = json.loads((run_dir / "audit.json").read_text(encoding="utf-8"))
@@ -310,6 +317,139 @@ class AstraPilotTests(unittest.TestCase):
         self.assertIn(str(self.library_db), before)
         self.pdf.write_bytes(b"tampered")
         self.assertEqual([str(self.pdf)], pilot.verify_protected(before))
+
+    # ---------- review finding regressions (Round 1 fixes) ----------
+
+    def test_complete_rejects_candidate_bound_to_other_package(self):
+        ready = self.stage()
+        staged_run = ready["package"]["run_id"]
+        with patch.object(access, "POLICY_ACTIVE", True):
+            other = access.prepare("lt-test", self.pdf, self.source, "article_text", self.ranges,
+                                   "appraise", ENVIRONMENT, model_id=ACTUAL,
+                                   requested_model_id=REQUESTED, directory=self.access_dir)
+            self.assertEqual("allowed", other["decision"])
+            self.assertNotEqual(staged_run, other["run_id"])
+            review_path, prov_path = self.candidate(
+                ready, package={"run_id": other["run_id"], "path": other["package_path"]})
+            audit = pilot.complete(ready["run_id"], review_path, prov_path,
+                                   library_db=self.library_db, access_directory=self.access_dir,
+                                   out_root=self.out_root)
+        self.assertEqual(pilot.FAILED, audit["verdict"])
+        self.assertIn("package_binding_mismatch", audit["fail_codes"])
+        self.assertFalse(self.run_dir_of(audit).exists())
+        failed = json.loads(
+            (self.out_root / (audit["run_id"] + ".failed.json")).read_text(encoding="utf-8"))
+        self.assertEqual(staged_run, failed["package"]["run_id"])
+
+    def test_prepare_rejected_records_blocked_artifact_set(self):
+        self.register()
+        with patch.object(access, "POLICY_ACTIVE", True):
+            beyond = [[0, len(self.text) + 10]]
+            audit = self.attempt(**dict(self.ready_args(), ranges=beyond))
+        self.assertEqual(pilot.BLOCKED, audit["verdict"])
+        self.assertTrue(any(reason.startswith("package_preparation_blocked:")
+                            for reason in audit["blocked_reasons"]))
+        run_dir = self.run_dir_of(audit)
+        self.assertEqual(set(pilot.ARTIFACTS), {path.name for path in run_dir.iterdir()})
+        self.assertFalse((self.out_root / (audit["run_id"] + ".blocked.json")).exists())
+        persisted = json.loads((run_dir / "audit.json").read_text(encoding="utf-8"))
+        self.assertEqual(pilot.BLOCKED, persisted["verdict"])
+        self.assertTrue(persisted["protected_inputs_unchanged"])
+
+    def test_unverified_identity_does_not_record_actual_model_id(self):
+        self.register()
+        with patch.object(access, "POLICY_ACTIVE", True):
+            args = self.ready_args()
+            args.pop("model_identity_evidence")
+            audit = self.attempt(**args)
+        self.assertEqual(pilot.BLOCKED, audit["verdict"])
+        self.assertIn("model_identity_verifiable", audit["blocked_reasons"])
+        self.assertIsNone(audit["actual_model_id"])
+        self.assertEqual(REQUESTED, audit["requested_model_id"])
+
+    def test_completed_run_closes_ready_marker_and_rejects_rerun(self):
+        ready = self.stage()
+        with patch.object(access, "POLICY_ACTIVE", True):
+            review_path, prov_path = self.candidate(ready)
+            pilot.complete(ready["run_id"], review_path, prov_path,
+                           library_db=self.library_db, access_directory=self.access_dir,
+                           out_root=self.out_root)
+        self.assertFalse((self.out_root / (ready["run_id"] + ".ready.json")).exists())
+        with patch.object(access, "POLICY_ACTIVE", True):
+            with self.assertRaises(pilot.PilotError) as ctx:
+                pilot.complete(ready["run_id"], review_path, prov_path,
+                               library_db=self.library_db, access_directory=self.access_dir,
+                               out_root=self.out_root)
+        self.assertIn("already has finalized artifacts", str(ctx.exception))
+
+    def test_failed_run_is_terminal_and_closes_ready_marker(self):
+        ready = self.stage()
+        with patch.object(access, "POLICY_ACTIVE", True):
+            review_path, prov_path = self.candidate(ready)
+            review = json.loads(review_path.read_text(encoding="utf-8"))
+            review["supporting_sources"][0]["quote"] = "fabricated quote that is not in the package"
+            review["output_hash"] = contract.output_digest(review)
+            review_path.write_text(json.dumps(review, ensure_ascii=False), encoding="utf-8")
+            audit = pilot.complete(ready["run_id"], review_path, prov_path,
+                                   library_db=self.library_db, access_directory=self.access_dir,
+                                   out_root=self.out_root)
+        self.assertEqual(pilot.FAILED, audit["verdict"])
+        self.assertTrue((self.out_root / (ready["run_id"] + ".failed.json")).is_file())
+        self.assertFalse((self.out_root / (ready["run_id"] + ".ready.json")).exists())
+        with patch.object(access, "POLICY_ACTIVE", True):
+            with self.assertRaises(pilot.PilotError) as ctx:
+                pilot.complete(ready["run_id"], review_path, prov_path,
+                               library_db=self.library_db, access_directory=self.access_dir,
+                               out_root=self.out_root)
+        self.assertIn("failed outcome", str(ctx.exception))
+
+    def test_finalize_crash_window_reports_dedicated_error(self):
+        ready = self.stage()
+        self.run_dir_of(ready).mkdir(parents=True)
+        with patch.object(access, "POLICY_ACTIVE", True):
+            review_path, prov_path = self.candidate(ready)
+            with self.assertRaises(pilot.PilotError) as ctx:
+                pilot.complete(ready["run_id"], review_path, prov_path,
+                               library_db=self.library_db, access_directory=self.access_dir,
+                               out_root=self.out_root)
+        self.assertIn("already has finalized artifacts", str(ctx.exception))
+        self.assertTrue((self.out_root / (ready["run_id"] + ".ready.json")).is_file())
+
+    def test_custom_data_dir_layout_records_blocked_nine_artifacts(self):
+        custom = self.root / "custom-ce06-data"  # deliberately NOT named research-library
+        custom_db = custom / "library.sqlite"
+        self.make_library(custom_db)
+        output = io.StringIO()
+        with patch.dict("os.environ", {"CHILDEVIDENCE_DATA_DIR": str(custom)}), \
+                redirect_stdout(output):
+            code = pilot.main(["run", "--work-id", "lt-test", "--requested-model-id", REQUESTED])
+            audit = json.loads(output.getvalue())
+            run_dir = pilot.output_root() / audit["run_id"]
+        self.assertEqual(0, code)
+        self.assertEqual(pilot.BLOCKED, audit["verdict"])
+        self.assertIn("policy_active", audit["blocked_reasons"])
+        self.assertEqual(set(pilot.ARTIFACTS), {path.name for path in run_dir.iterdir()})
+        self.assertTrue(audit["protected_inputs_unchanged"])
+
+    def test_custom_layout_protects_annotation_store_candidates(self):
+        custom = self.root / "custom-ce06-data"
+        custom_db = custom / "library.sqlite"
+        self.make_library(custom_db)
+        store = custom / "review" / "annotations.sqlite"  # CLI default store location
+        store.parent.mkdir(parents=True)
+        store.write_bytes(b"synthetic annotation store")
+        with patch.dict("os.environ", {"CHILDEVIDENCE_DATA_DIR": str(custom)}):
+            before = pilot.protected_assets(pdf_path=self.pdf, library_db=custom_db,
+                                            access_directory=self.access_dir, out_root=self.out_root)
+        self.assertIn(str(store), before)
+
+    def test_custom_layout_still_rejects_out_root_inside_data(self):
+        custom = self.root / "custom-ce06-data"
+        custom_db = custom / "library.sqlite"
+        self.make_library(custom_db)
+        with patch.dict("os.environ", {"CHILDEVIDENCE_DATA_DIR": str(custom)}):
+            with self.assertRaises(pilot.PilotError):
+                self.attempt(library_db=custom_db, out_root=custom / "inside")
 
     # ---------- guards ----------
 

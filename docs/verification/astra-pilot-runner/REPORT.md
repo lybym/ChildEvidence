@@ -53,7 +53,7 @@ Gold 升级、run_id 不一致、受保护资产篡改均 FAILED；`precheck` �
 
 | 验收条件 | 证明 |
 |---|---|
-| 权限、版本、范围和环境预检通过 | 12 项条件预检（`precheck`）+ 激活态合成链路全通过测试；当前真实状态如实 BLOCKED（§3） |
+| 权限、版本、范围和环境预检通过 | 13 项条件预检（`precheck`）+ 激活态合成链路全通过测试；当前真实状态如实 BLOCKED（§3） |
 | 内容包与原文逐项核对 | `prepare`/`verify_package` 哈希与区间链路复用（#12 契约），运行器仅在其上编排，不绕过 |
 | 事实/引文有来源哈希及位置，不虚构 | `complete` 强制 `review_contract.validate`（引文哈希+本地文本匹配）；幻觉引用测试 FAILED |
 | Evidence Card 含适用边界、偏倚、不确定性、未决问题 | `evidence-card.md` 四节结构测试断言；blocked 状态一律"未开展"+null，不虚构样本/效应/DOI/页码 |
